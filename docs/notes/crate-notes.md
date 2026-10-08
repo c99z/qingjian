@@ -350,5 +350,8 @@ Unix socket 用共享长度前缀与 Frame（当前公共版本 7，与 `PROTOCO
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
 
-管理 socket（`qingjian-admin.sock`，协议 `LINUX_ADMIN_PROTOCOL = 1`，类型在 `protocol/admin`）提供 `status` / `reload` / `stats`；`dispatch/reload` 一秒轮询配置 mtime，
+管理 socket（`qingjian-admin.sock`，协议 `LINUX_ADMIN_PROTOCOL = 1`，serde 类型在 `qingjian_platform::protocol::linux_admin`，Server 的 `protocol/admin` 只 re-export，路径规则也在平台层）提供 `status` / `reload` / `stats`；`dispatch/reload` 一秒轮询配置 mtime，
 学习开关立即生效，其余修改等所有会话组句结束（`dispatch/reload/tests.rs` 与 `tests/reload.rs` 覆盖组句不丢、挂起会话、坏配置保持）。
+
+`apps/linux/settings`（`qingjian-linux-settings`，GTK4/libadwaita 设置应用，基线 GTK 4.14 / libadwaita 1.5）分 `state`（草稿 `DraftStore` 与保存管线，可单测）、
+`adapters/admin`（管理 socket 客户端）、`ui`（`AdwNavigationSplitView` 侧栏 + 四个页面）；草稿走 `settings::apply` 三路比较，服务没跑时保存显示「下次启动生效」。安装接线（desktop 文件、依赖检查）在 P7。

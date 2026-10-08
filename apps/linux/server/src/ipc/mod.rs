@@ -42,10 +42,9 @@ pub fn socket_path() -> PathBuf {
 }
 
 /// 管理 socket 路径：与按键 socket 同目录的 `qingjian-admin.sock`；`QINGJIAN_ADMIN_SOCKET` 可覆盖（测试用）。
+/// 路径规则与设置程序共用，定义在平台层。
 pub fn admin_socket_path() -> PathBuf {
-    std::env::var_os("QINGJIAN_ADMIN_SOCKET")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| socket_path().with_file_name("qingjian-admin.sock"))
+    qingjian_platform::protocol::linux_admin::socket_path()
 }
 
 /// 仅移除同用户、确认拒绝连接的陈旧 socket；拒绝符号链接和不安全的父目录。

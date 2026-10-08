@@ -1,17 +1,8 @@
-//! 管理 socket 协议：与按键协议分开版本化，设置程序经它查状态、请求重载、读统计。
-//! 只暴露这里的枚举能力，不承载任意命令或文件路径。
+//! 管理 socket 协议类型：定义已上移到 `qingjian_platform::protocol::linux_admin`（设置应用共用），
+//! 这里只做 re-export，保持 server 内部的 `protocol::admin::…` 路径不变。
 
-mod reload;
-mod request;
-mod response;
-mod stats;
-mod status;
-
-pub use reload::ReloadReport;
-pub use request::{AdminCommand, AdminRequest};
-pub use response::AdminResponse;
-pub use stats::{StatsReport, UsageCounts, UsageReport, VocabularyReport};
-pub use status::{CloudStatus, ConfigStatus, ModelStatus, StatusReport};
-
-/// 管理协议版本；请求带版本，不符明确拒绝。
-pub const LINUX_ADMIN_PROTOCOL: u32 = 1;
+pub use qingjian_platform::protocol::linux_admin::{
+    AdminCommand, AdminRequest, AdminResponse, CloudStatus, ConfigStatus, LINUX_ADMIN_PROTOCOL,
+    ModelStatus, ReloadReport, StatsReport, StatusReport, UsageCounts, UsageReport,
+    VocabularyReport,
+};

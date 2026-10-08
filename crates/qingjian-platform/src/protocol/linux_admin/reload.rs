@@ -1,6 +1,7 @@
 //! `Reload` 命令的回包：应用结果复用共享设置基础的 `ComponentStatus`。
-use qingjian_platform::settings::ComponentStatus;
 use serde::{Deserialize, Serialize};
+
+use crate::settings::ComponentStatus;
 
 /// 一次重载的结果；Fcitx5 侧的结果由设置程序自己走 D-Bus 拿，不经过这里。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

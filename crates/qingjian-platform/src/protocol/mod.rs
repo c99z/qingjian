@@ -31,6 +31,7 @@ pub const SESSION_OPENED_SINCE: u32 = 6;
 
 pub mod frame;
 pub mod key;
+pub mod linux_admin;
 
 pub use client::ClientMessage;
 pub use codec::{CodecError, DEFAULT_PIPE_NAME, read_message, write_message};

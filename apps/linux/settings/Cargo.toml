@@ -1,0 +1,25 @@
+[package]
+name = "qingjian-linux-settings"
+description = "青简输入法的 GTK4/libadwaita 设置应用"
+version = "0.1.5-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "qingjian-linux-settings"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+adw = { version = "0.7", package = "libadwaita", features = ["v1_5"] }
+gtk = { version = "0.9", package = "gtk4", features = ["v4_14"] }
+qingjian-platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml_edit.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -12,7 +12,7 @@ members = [
     "crates/qingjian-neural",
     "crates/qingjian-render",
     "crates/qingjian-update",
-    "apps/linux/server", "apps/cli", "apps/macos", "apps/windows/server", "apps/windows/tsf", "apps/windows/settings", "tools/dict-convert", "tools/gloss-gen", "tools/release-sign",
+    "apps/linux/server", "apps/linux/settings", "apps/cli", "apps/macos", "apps/windows/server", "apps/windows/tsf", "apps/windows/settings", "tools/dict-convert", "tools/gloss-gen", "tools/release-sign",
 ]
 
 [workspace.package]
@@ -64,6 +64,9 @@ zerocopy = { version = "0.8", features = ["derive"] }
 candle-core = "0.11.0"
 candle-nn = "0.11.0"
 
+# Linux 管理 socket 缺省路径要按 euid 隔离 /tmp 目录
+libc = "0.2.189"
+
 # 云联想：OpenAI 兼容接口客户端与它需要的异步运行时
 async-openai = { version = "0.42.0", default-features = false, features = ["chat-completion", "native-tls", "byot"] }
 reqwest = { version = "0.13", default-features = false }
@@ -78,7 +81,6 @@ base64 = "0.23.1"
 tiny-skia = "0.12.0"
 # 不开 fontconfig：不扫系统字体库，字体文件由渲染器按平台清单自己加载
 cosmic-text = { version = "0.19.0", default-features = false, features = ["std", "swash"] }
-png = "0.18.1"
 
 # macOS 平台层
 objc2 = "0.6.4"

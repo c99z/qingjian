@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=青简设置
+GenericName=输入法设置
+Comment=配置青简输入法
+Exec=qingjian-linux-settings
+Icon=qingjian
+Categories=Settings;Utility;
+Keywords=输入法;青简;设置;input;method;
+StartupNotify=true
