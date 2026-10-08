@@ -6,6 +6,7 @@ pub mod general;
 pub mod logs;
 pub mod model;
 pub mod shortcuts;
+pub mod statistics;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

@@ -23,7 +23,7 @@ int main() {
         contexts.push_back(std::make_unique<Input>(instance.inputContextManager()));
         type(*contexts.back(), i % 2 ? "hao" : "ni");
     }
-    assert(server.sockets() == 2); // 一条监听 socket + 一条插件连接。
+    assert(server.sockets() == 3); // 按键和管理各一条监听 socket + 一条插件连接。
     for (size_t i = 0; i < contexts.size(); ++i) {
         assert(engine.process(contexts[i].get(), fcitx::Key(FcitxKey_space)));
         assert(contexts[i]->committed == (i % 2 ? "好" : "你"));
@@ -97,7 +97,7 @@ int main() {
     old->candidate(0).select(replacement.get()); assert(replacement->committed.empty());
     type(*replacement, "ni"); assert(engine.process(replacement.get(), fcitx::Key(FcitxKey_space)));
     for (int i = 0; i < 160; ++i) { Input transient(instance.inputContextManager()); type(transient, "ni"); }
-    type(*replacement, "hao"); assert(server.sockets() == 2);
+    type(*replacement, "hao"); assert(server.sockets() == 3);
     server.stop();
     for (const auto &file : std::filesystem::recursive_directory_iterator(server.directory)) {
         if (!file.is_regular_file() || file.path().filename() == "dict.tsv") continue;
@@ -109,7 +109,7 @@ int main() {
     server.start();
     const auto committed = replacement->committed;
     type(*replacement, "hao"); assert(engine.process(replacement.get(), fcitx::Key(FcitxKey_space)));
-    assert(replacement->committed == committed + "好" && server.sockets() == 2);
+    assert(replacement->committed == committed + "好" && server.sockets() == 3);
     replacement->focusIn(); type(*replacement, "ni");
     auto finalCandidates = replacement->inputPanel().candidateList();
     auto shared = static_cast<qingjian::Session *>(replacement->property("qingjian-session"))->owner.lock();

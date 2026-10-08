@@ -110,6 +110,20 @@ fn native_window_edits_reverts_saves_and_renders() {
         }
     }
     revert.emit_clicked();
+    sidebar.select_row(sidebar.row_at_index(5).as_ref());
+    wait_for(|| stack.visible_child_name().as_deref() == Some("5"));
+    let stats_source = descendants(&window.clone().upcast())
+        .into_iter()
+        .filter_map(|w| w.downcast::<adw::ActionRow>().ok())
+        .find(|r| r.title() == "数据来源")
+        .unwrap();
+    wait_for(|| {
+        stats_source
+            .subtitle()
+            .as_deref()
+            .is_some_and(|s| s != "读取中…")
+    });
+    assert!(stats_source.subtitle().unwrap().contains("服务未运行"));
     window.destroy();
 }
 

@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
         assert(b->preedit() == "ha" && b->committed.empty());
         type(engine, *b, "o ");
         assert(b->committed == "好" && a->committed == "n");
-        assert(session(*b)->generation == generation && server.sockets() == 2);
+        assert(session(*b)->generation == generation && server.sockets() == 3);
         return 0;
     }
     if (scenario == "capability-destroy") {
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
         a->setCapabilityFlags(fcitx::CapabilityFlags(fcitx::CapabilityFlag::Preedit) | fcitx::CapabilityFlag::Sensitive);
         assert(reached && !a);
         assert(engine.process(b.get(), fcitx::Key(FcitxKey_space)));
-        assert(b->committed == "好" && server.sockets() == 2);
+        assert(b->committed == "好" && server.sockets() == 3);
         return 0;
     }
     if (scenario == "disconnect-destroy") {
@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
         assert(reached && !second && c->committed == "x " && c->preedit().empty());
         assert(!shared->clearing && shared->generation == generation);
         server.start(); type(engine, *c, "ni ");
-        assert(c->committed == "x 你" && shared->generation > generation && server.sockets() == 2);
+        assert(c->committed == "x 你" && shared->generation > generation && server.sockets() == 3);
         return 0;
     }
     if (scenario == "commit-reentry") {
@@ -138,5 +138,5 @@ int main(int argc, char **argv) {
         assert(a->committed.empty()); // UI 回调撤销了旧生命周期，但原键不能透传。
         type(engine, *a, "ni "); assert(a->committed == "你");
     }
-    type(engine, *b, "ni "); assert(b->committed == "好你" && server.sockets() == 2);
+    type(engine, *b, "ni "); assert(b->committed == "好你" && server.sockets() == 3);
 }

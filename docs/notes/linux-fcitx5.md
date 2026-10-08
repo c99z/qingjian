@@ -56,8 +56,8 @@ FocusOut 的行内预编辑由框架或声明 ClientUnfocusCommit 的客户端�
 ## 管理 socket 与配置热重载
 
 管理 socket 与按键 socket 分开：同目录的 `qingjian-admin.sock`（`QINGJIAN_ADMIN_SOCKET` 可覆盖），同样的 0600 权限、父目录检查、陈旧清理、长度前缀 JSON 与同 uid 校验。
-协议独立版本化（`LINUX_ADMIN_PROTOCOL = 1`），版本不符或无法解析的请求回 `Error` 并断开；请求进主线程同一队列，与按键处理串行。
-首版三条命令：`status`（版本、配置代次与挂起状态、上次错误、模型状态、云服务 disabled 占位）、`reload`（立即读盘应用，返回 `ComponentStatus`）、`stats`（今日 / 近七天 / 累计输入量与词汇统计）。
+协议独立版本化（`LINUX_ADMIN_PROTOCOL = 2`），版本不符或无法解析的请求回 `Error` 并断开；请求进主线程同一队列，与按键处理串行。
+当前命令：`status`（版本、配置代次与挂起状态、上次错误、模型状态、云服务 disabled 占位）、`reload`（立即读盘应用，返回 `ComponentStatus`）、`stats`（今日 / 近七天 / 累计输入量与词汇统计），`clear_input_log`（关闭旧日志缓冲后截断，按已应用的开关重开写入端，返回 `Maintenance(ComponentStatus)`）。
 
 热重载在 `dispatch/reload`：一秒节拍轮询 `config.toml` 的 mtime（原子替换后按路径重读即可），解析失败保持上一次可用配置并把错误留在 `status` 里。
 学习开关立即生效；输入方案、快捷键、候选数量、释义语言、附加词库、模型与输入日志开关等所有会话（含挂起会话）的组句结束后才应用——组句中保存设置不丢正在输入的拼音与候选。
@@ -92,3 +92,6 @@ Server 启动时按 `[model] enabled`（缺省开）在后台线程加载模型�
   默认面板的外观与位置由 Fcitx5 决定：GTK4 应用里是输入模块自己画的黑白面板，Firefox 里是 Fcitx5 的橙色面板且与光标同一行，Fcitx5 自带拼音表现相同。
 - 真实桌面（2026-09-22，本地整句模型）：CachyOS，niri（原生 Wayland），Fcitx5 5.1.22，Microsoft Edge（Chromium，`--enable-wayland-ime`）与 Konsole（Qt6）：停顿后整句候选按模型换序。
 - 未验证：KDE 与其他桌面、其他发行版、GTK3 / Qt5 应用、真实 X11 桌面会话。
+
+设置应用统计页服务离线时读 `usage.tsv` / `user-vocab.tsv` 并标明更新时间。清空日志只由服务操作既定日志路径，不接收外部文件参数。
+插件集成夹具中的 socket 总数为三：按键监听、管理监听、共享插件连接；多个上下文仍复用同一条插件连接。

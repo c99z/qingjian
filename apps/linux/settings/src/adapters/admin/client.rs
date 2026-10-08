@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use qingjian_platform::protocol::linux_admin::{
-    AdminCommand, AdminRequest, AdminResponse, LINUX_ADMIN_PROTOCOL, StatusReport,
+    AdminCommand, AdminRequest, AdminResponse, LINUX_ADMIN_PROTOCOL, StatsReport, StatusReport,
 };
 use qingjian_platform::protocol::{read_message, write_message};
 use qingjian_platform::settings::ComponentStatus;
@@ -51,6 +51,22 @@ impl AdminClient {
     pub fn reload(&self) -> Result<ComponentStatus, AdminError> {
         match self.request(AdminCommand::Reload)? {
             AdminResponse::Reload(report) => Ok(report.server),
+            AdminResponse::Error(message) => Err(AdminError::Rejected(message)),
+            other => Err(AdminError::Unexpected(format!("{other:?}"))),
+        }
+    }
+
+    pub fn stats(&self) -> Result<StatsReport, AdminError> {
+        match self.request(AdminCommand::Stats)? {
+            AdminResponse::Stats(report) => Ok(report),
+            AdminResponse::Error(message) => Err(AdminError::Rejected(message)),
+            other => Err(AdminError::Unexpected(format!("{other:?}"))),
+        }
+    }
+
+    pub fn clear_input_log(&self) -> Result<ComponentStatus, AdminError> {
+        match self.request(AdminCommand::ClearInputLog)? {
+            AdminResponse::Maintenance(report) => Ok(report),
             AdminResponse::Error(message) => Err(AdminError::Rejected(message)),
             other => Err(AdminError::Unexpected(format!("{other:?}"))),
         }

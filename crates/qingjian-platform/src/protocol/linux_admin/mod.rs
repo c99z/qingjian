@@ -4,20 +4,22 @@
 //! 类型原本在 `apps/linux/server/src/protocol/admin/`，P3 的设置应用要共用同一套 schema，
 //! 上移到这里，Server 侧只做 re-export。
 
+mod command;
 mod reload;
 mod request;
 mod response;
 mod stats;
 mod status;
 
+pub use command::AdminCommand;
 pub use reload::ReloadReport;
-pub use request::{AdminCommand, AdminRequest};
+pub use request::AdminRequest;
 pub use response::AdminResponse;
 pub use stats::{StatsReport, UsageCounts, UsageReport, VocabularyReport};
 pub use status::{CloudStatus, ConfigStatus, ModelStatus, StatusReport};
 
 /// 管理协议版本；请求带版本，不符明确拒绝。
-pub const LINUX_ADMIN_PROTOCOL: u32 = 1;
+pub const LINUX_ADMIN_PROTOCOL: u32 = 2;
 
 /// 管理 socket 路径：`QINGJIAN_ADMIN_SOCKET` 优先；否则与按键 socket 同目录的
 /// `qingjian-admin.sock`（`QINGJIAN_SOCKET` 覆盖按键路径时跟着走），缺省

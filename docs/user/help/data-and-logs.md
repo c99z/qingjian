@@ -16,6 +16,7 @@ description: 青简在本机保存的文件及其内容、云联想发送的内�
 
 - **macOS**：「~/Library/Application Support/Qingjian/」（访达中按 `⇧⌘G` 输入此路径）。
 - **Windows**：「%APPDATA%\Qingjian」（在资源管理器地址栏中直接输入此路径）。
+- **Linux**：配置在 `~/.config/qingjian/config.toml`，学习数据在 `~/.local/share/qingjian`；输入日志在 `~/.local/state/qingjian/logs/input-log.jsonl`。设置了 XDG 路径时使用相应目录。
 
 均为纯文本，可随时打开查看：
 
@@ -59,6 +60,7 @@ description: 青简在本机保存的文件及其内容、云联想发送的内�
 
 - 关闭：「偏好设置 → 高级」取消勾选「记录输入日志」。
 - 清空：同一页的「清空输入日志」。
+- Linux 源码开发版在「青简设置 → 学习与数据」修改开关，点击「应用」保存；清空按钮确认后立即执行，需要青简服务运行，统计和学习记录保留。
 - 测试期间若愿意将此文件提供给作者，对改进排序有很大帮助；完全自愿。
 
 ## 运行日志

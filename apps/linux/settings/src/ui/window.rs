@@ -19,6 +19,7 @@ use super::pages::general::GeneralPage;
 use super::pages::logs::LogsPage;
 use super::pages::model::ModelPage;
 use super::pages::shortcuts::ShortcutsPage;
+use super::pages::statistics::StatisticsPage;
 use super::pages::{PageContext, SettingsPage};
 
 pub struct SettingsWindow {
@@ -118,6 +119,7 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
         ShortcutsPage::new(&ctx),
         Rc::new(ModelPage::new(&ctx)),
         Rc::new(LogsPage::new(&ctx)),
+        StatisticsPage::new(&ctx),
     ];
 
     let sidebar = gtk::ListBox::new();

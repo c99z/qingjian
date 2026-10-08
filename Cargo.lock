@@ -3095,7 +3095,10 @@ version = "0.1.5-dev"
 dependencies = [
  "gio",
  "gtk4",
+ "jiff",
  "libadwaita",
+ "qingjian-core",
+ "qingjian-learning",
  "qingjian-platform",
  "serde",
  "serde_json",

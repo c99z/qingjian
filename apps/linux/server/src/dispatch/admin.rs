@@ -14,6 +14,7 @@ impl Router {
             AdminCommand::Status => AdminResponse::Status(self.status_report()),
             AdminCommand::Reload => AdminResponse::Reload(self.reload_now()),
             AdminCommand::Stats => AdminResponse::Stats(self.stats_report()),
+            AdminCommand::ClearInputLog => AdminResponse::Maintenance(self.clear_input_log()),
         };
         serde_json::to_value(response).ok()
     }
@@ -62,6 +63,43 @@ impl Router {
         StatsReport {
             usage: self.engine.usage_summary().into(),
             vocabulary: self.engine.vocabulary_summary().into(),
+        }
+    }
+}
+
+impl Router {
+    fn clear_input_log(&mut self) -> qingjian_platform::settings::ComponentStatus {
+        use qingjian_core::{InputLogger, NoInputLogger};
+        use qingjian_learning::InputLog;
+        use qingjian_platform::settings::ComponentStatus;
+        let Some(path) = self.reload.as_ref().and_then(|r| r.dirs.input_log.clone()) else {
+            return ComponentStatus::Failed("服务没有输入日志路径".to_owned());
+        };
+        let enabled = self.reload.as_ref().is_some_and(|r| r.applied_input_log);
+        // 先 flush 并销毁旧 BufWriter，再截断；旧缓冲不能在本次清空后写回。
+        self.engine.input_logger_mut().flush();
+        self.engine.set_input_logger(Box::new(NoInputLogger));
+        let cleared = match std::fs::symlink_metadata(&path) {
+            Ok(meta) if meta.is_file() => InputLog::clear(&path),
+            Ok(_) => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "input log is not a regular file",
+            )),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        };
+        let mut reopened = true;
+        if enabled {
+            let log = InputLog::open(&path);
+            reopened = log.is_enabled();
+            self.engine.set_input_logger(Box::new(log));
+        }
+        match cleared {
+            Err(error) => ComponentStatus::Failed(format!("清空输入日志失败：{error}")),
+            Ok(()) if !reopened => ComponentStatus::Failed(
+                "日志已清空，但写入端无法重新打开，请检查目录权限".to_owned(),
+            ),
+            Ok(()) => ComponentStatus::Applied,
         }
     }
 }

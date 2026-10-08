@@ -1,6 +1,6 @@
 //! 管理 socket：权限、协议版本拒绝、Status / Reload / Stats 往返。
 #![cfg(target_os = "linux")]
-#[path = "support/server.rs"]
+#[path = "../support/server.rs"]
 mod server;
 use qingjian_linux_server::protocol::admin::LINUX_ADMIN_PROTOCOL;
 use qingjian_platform::protocol::{PROTOCOL_VERSION, read_message, write_message};
@@ -118,3 +118,5 @@ fn status_reload_and_stats_round_trip() {
     drop(server);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+mod maintenance;

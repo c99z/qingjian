@@ -1,10 +1,10 @@
 # Linux 设置实现与验证
 
-计划原文在本机 `/home/xiaoyu/outcome/plan/qingjian-linux-settings-development-plan.md`，P1—P3 已提交；P4 补齐实现。P5—P7 尚未完成，不能把独立设置应用标成完整版本。
+计划原文在本机 `/home/xiaoyu/outcome/plan/qingjian-linux-settings-development-plan.md`，P1—P3 已提交；P4 补齐实现。P5 已开始接统计与日志维护；P5—P7 尚未完成，不能把独立设置应用标成完整版本。
 
 ## P4 验证
 
-2026-10-08，Ubuntu 24.04 / GTK 4.14.5 / libadwaita 1.5.0 / Fcitx5，用户会话总线：
+2026-10-08，Ubuntu 24.04 / GTK 4.14.5 / libadwaita 1.5.0 / Fcitx5 5.1.23，用户会话总线：
 
 ```sh
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
@@ -35,6 +35,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
 - 在真实 GTK / Qt / Firefox / 编辑器输入框确认候选字体、颜色与横竖排。
 - 100%、150%、200% 缩放和深浅色完整页面检查。
 - Ubuntu 26.04 / Wayland，其他面板接管时的适用范围。
-- P5 词库、短语、统计、备份恢复与服务协调的日志清空。
+- P5 词库、短语、备份恢复。
 - P6 云服务、隐私和跨会话旧结果隔离。
 - P7 默认安装设置应用、桌面入口、依赖检查、升级回滚与 CI。
+
+## P5 第一部分
+
+统计页已显示今日 / 七天 / 累计输入量和词汇摘要；优先读服务，离线读已保存文件并显示时间。
+学习与数据页有学习开关、数据目录、输入日志开关及清空按钮；清空是明确的独立操作，确认后经服务完成，不进入配置草稿。
+真服务测试覆盖只有一条尚未落盘记录时清空、组句中清空、之后的新记录正常写入，以及统计不变。管理协议升至 v2。
+
+仓库 `fmt`、非 macOS workspace 的 clippy、相关 Rust 测试、真实 GTK 检查、workspace 构建通过。
+重新构建 Fcitx5 测试后发现原测试仍按单监听 socket 计数，修正管理监听的计数后 45 / 45 通过。
+词库管理、短语、备份恢复尚未接入，P5 不能标记完成。
