@@ -354,4 +354,13 @@ Unix socket 用共享长度前缀与 Frame（当前公共版本 7，与 `PROTOCO
 学习开关立即生效，其余修改等所有会话组句结束（`dispatch/reload/tests.rs` 与 `tests/reload.rs` 覆盖组句不丢、挂起会话、坏配置保持）。
 
 `apps/linux/settings`（`qingjian-linux-settings`，GTK4/libadwaita 设置应用，基线 GTK 4.14 / libadwaita 1.5）分 `state`（草稿 `DraftStore` 与保存管线，可单测）、
-`adapters/admin`（管理 socket 客户端）、`ui`（`AdwNavigationSplitView` 侧栏 + 四个页面）；草稿走 `settings::apply` 三路比较，服务没跑时保存显示「下次启动生效」。安装接线（desktop 文件、依赖检查）在 P7。
+`adapters/admin`（管理 socket 客户端）、`ui`（`AdwNavigationSplitView` 侧栏，800 px 以下收起；通用 / 候选与外观 / 快捷键 / 模型 / 日志五页）；草稿走 `settings::apply` 三路比较，服务没跑时保存显示「下次启动生效」。安装接线（desktop 文件、依赖检查）在 P7。
+
+外观适配在 `adapters/fcitx5`：会话总线 `org.fcitx.Fcitx5` `/controller` 的 `org.fcitx.Fcitx.Controller1`，
+通过 `GetConfig` 描述枚举主题，用实时值三路比较字体和颜色冲突，`SetConfig` / `ReloadAddonConfig` 后读回确认。
+Fcitx5 布尔值在配置树里是字符串，`GetAddonsV2` 的索引 4 是可配置、5 才是启用，不提供已加载状态。
+`CandidateCommentColor` / `HighlightCandidateCommentColor` 是 Optional|Color，主题文件必须使用 `[InputPanel/<字段>]` 的 `Value`，不能写成主节字符串。
+定制目录为 `$XDG_DATA_HOME/fcitx5/themes/qingjian-custom`，同目录临时准备整套图片及配置，交换后保留回滚副本直到读回成功。
+显式主题选择关闭 `UseDarkTheme`，防止固定预设被系统 DarkTheme 覆盖；只改字体保留当前主题行为。
+保存期间禁用编辑，外观失败保留草稿；旧探测结果按代次丢弃，重新检测不能覆盖已编辑字段的冲突基准。
+验证命令与尚未验收部分见 [Linux 设置验收记录](linux-settings.md)。

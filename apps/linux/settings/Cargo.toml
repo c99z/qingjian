@@ -15,10 +15,12 @@ workspace = true
 
 [dependencies]
 adw = { version = "0.7", package = "libadwaita", features = ["v1_5"] }
+gio = "0.20"
 gtk = { version = "0.9", package = "gtk4", features = ["v4_14"] }
 qingjian-platform.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile = "3"
 thiserror.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true

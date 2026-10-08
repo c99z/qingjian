@@ -14,6 +14,7 @@ use qingjian_platform::settings::{ComponentStatus, FieldConflict, FieldError};
 use crate::adapters::admin::AdminClient;
 use crate::state::{DraftStore, SaveOutcome, save};
 
+use super::pages::appearance::AppearancePage;
 use super::pages::general::GeneralPage;
 use super::pages::logs::LogsPage;
 use super::pages::model::ModelPage;
@@ -50,6 +51,8 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("青简设置")
+        .width_request(360)
+        .height_request(320)
         .default_width(1000)
         .default_height(720)
         .build();
@@ -59,6 +62,11 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
     split.set_vexpand(true);
     split.set_min_sidebar_width(220.0);
     split.set_max_sidebar_width(320.0);
+    let breakpoint = adw::Breakpoint::new(
+        adw::BreakpointCondition::parse("max-width: 800px").expect("固定断点合法"),
+    );
+    breakpoint.add_setter(&split, "collapsed", Some(&true.to_value()));
+    window.add_breakpoint(breakpoint);
 
     let revert = gtk::Button::with_label("撤销修改");
     revert.set_tooltip_text(Some("放弃全部未保存的修改"));
@@ -106,6 +114,7 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
 
     let pages: Vec<Rc<dyn SettingsPage>> = vec![
         Rc::new(GeneralPage::new(&ctx)),
+        AppearancePage::new(&ctx),
         ShortcutsPage::new(&ctx),
         Rc::new(ModelPage::new(&ctx)),
         Rc::new(LogsPage::new(&ctx)),
@@ -201,6 +210,10 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
     sidebar.select_row(sidebar.row_at_index(0).as_ref());
     this.refresh_pages();
     (this.ctx.notify)();
+    // 窗口上的回调全是弱引用：窗体自己必须活到窗口销毁，否则 build 返回后
+    // Rc 被丢弃，翻页 / 保存 / 关闭确认全部静默失效
+    let keep = this.clone();
+    window.connect_destroy(move |_| drop(keep.clone()));
     this
 }
 
@@ -270,6 +283,9 @@ impl SettingsWindow {
         self.ctx.store.borrow_mut().revert();
         *self.notice.borrow_mut() = None;
         self.refresh_pages();
+        for page in &self.pages {
+            page.on_saved();
+        }
         (self.ctx.notify)();
         self.show_toast("已撤销未保存的修改");
     }
@@ -286,25 +302,35 @@ impl SettingsWindow {
             return;
         }
         self.saving.set(true);
+        self.stack.set_sensitive(false);
         (self.ctx.notify)();
-        let (path, snapshot, patch) = {
+        let (path, snapshot, patch, appearance) = {
             let store = self.ctx.store.borrow();
             (
                 store.path().to_owned(),
                 store.snapshot().clone(),
                 store.patch().clone(),
+                // 外观草稿有改动才走 Fcitx5 那一段
+                store
+                    .appearance()
+                    .is_dirty()
+                    .then(|| store.appearance().clone()),
             )
         };
         let admin = self.ctx.admin.clone();
         let this = self.clone();
         glib::MainContext::default().spawn_local(async move {
-            let outcome = gio::spawn_blocking(move || save(&path, &snapshot, &patch, &admin)).await;
+            let outcome = gio::spawn_blocking(move || {
+                save(&path, &snapshot, &patch, &admin, appearance.as_ref())
+            })
+            .await;
             this.finish_save(outcome, close_after);
         });
     }
 
     fn finish_save(self: &Rc<Self>, outcome: std::thread::Result<SaveOutcome>, close_after: bool) {
         self.saving.set(false);
+        self.stack.set_sensitive(true);
         let outcome = match outcome {
             Ok(outcome) => outcome,
             Err(_) => {
@@ -320,26 +346,45 @@ impl SettingsWindow {
             SaveOutcome::Invalid(errors) => self.show_field_errors(&errors),
             SaveOutcome::Conflicts(conflicts) => self.show_conflicts(&conflicts),
             SaveOutcome::WriteFailed(message) => self.show_notice(message),
-            SaveOutcome::Saved { server } => {
-                // 落盘成功，推进基准（重新读快照、清空草稿）
-                if let Err(error) = self.ctx.store.borrow_mut().mark_saved() {
+            SaveOutcome::Saved { server, appearance } => {
+                // 落盘成功，推进基准（重新读快照、清空草稿）；外观没应用成功的部分留在草稿里等重试
+                let appearance_applied = !matches!(&appearance, Some(ComponentStatus::Failed(_)));
+                if let Err(error) = self.ctx.store.borrow_mut().mark_saved(appearance_applied) {
                     self.show_notice(format!("配置已保存，但重新读取配置失败：{error}"));
                     (self.ctx.notify)();
                     return;
                 }
                 self.refresh_pages();
-                *self.notice.borrow_mut() = None;
-                match &server {
-                    ComponentStatus::Applied => self.show_toast("设置已保存并生效"),
-                    ComponentStatus::PendingReload => self.show_toast("已保存，当前输入结束后生效"),
-                    ComponentStatus::Loading => self.show_toast("已保存，模型在后台加载"),
-                    ComponentStatus::Saved => self.show_toast("已保存，服务未运行，下次启动生效"),
-                    // 配置已落盘但服务没应用：部分成功，如实展示
-                    ComponentStatus::Failed(message) => {
-                        self.show_notice(format!("配置已保存，但服务应用失败：{message}"));
-                    }
+                for page in &self.pages {
+                    page.on_saved();
                 }
-                if close_after && !matches!(server, ComponentStatus::Failed(_)) {
+                *self.notice.borrow_mut() = None;
+                // 部分失败如实展示：配置已落盘但服务 / Fcitx5 没应用时不显示成全部成功
+                let mut problems = Vec::new();
+                if let ComponentStatus::Failed(message) = &server {
+                    problems.push(format!("服务应用失败：{message}"));
+                }
+                if let Some(ComponentStatus::Failed(message)) = &appearance {
+                    problems.push(format!("外观未应用：{message}"));
+                }
+                if problems.is_empty() {
+                    match &server {
+                        ComponentStatus::Applied => self.show_toast("设置已保存并生效"),
+                        ComponentStatus::PendingReload => {
+                            self.show_toast("已保存，当前输入结束后生效")
+                        }
+                        ComponentStatus::Loading => self.show_toast("已保存，模型在后台加载"),
+                        ComponentStatus::Saved => {
+                            self.show_toast("已保存，服务未运行，下次启动生效")
+                        }
+                        ComponentStatus::Failed(_) => unreachable!(),
+                    }
+                } else {
+                    self.show_notice(format!("配置已保存，{}", problems.join("；")));
+                }
+                let any_failed =
+                    matches!(server, ComponentStatus::Failed(_)) || !appearance_applied;
+                if close_after && !any_failed {
                     // 草稿已清空，close-request 会放行
                     self.window.close();
                 }

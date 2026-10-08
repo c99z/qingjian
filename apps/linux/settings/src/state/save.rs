@@ -9,6 +9,9 @@ use qingjian_platform::settings::{
 };
 
 use crate::adapters::admin::{AdminClient, AdminError};
+use crate::adapters::fcitx5::{self, Fcitx5Client, Fcitx5Error};
+
+use super::appearance::AppearanceDraft;
 
 /// 一次「应用」的结果。
 #[derive(Debug)]
@@ -27,16 +30,22 @@ pub enum SaveOutcome {
 
     /// 已写入。`server` 是通知服务重载的结果：服务没跑是 [`ComponentStatus::Saved`]
     /// （「下次启动生效」），重载失败是 `Failed`——配置已落盘但服务没应用，部分成功要如实展示。
-    Saved { server: ComponentStatus },
+    /// `appearance` 是 Fcitx5 外观的应用结果：`None` 表示外观草稿本来就是空的；
+    /// `Failed` 时外观草稿保留，不能显示成全部成功。
+    Saved {
+        server: ComponentStatus,
+        appearance: Option<ComponentStatus>,
+    },
 }
 
-/// 跑完整保存流程。`snapshot` / `patch` 传克隆，本函数不改调用方的草稿状态；
+/// 跑完整保存流程。`snapshot` / `patch` / `appearance` 传克隆，本函数不改调用方的草稿状态；
 /// 返回 `Saved` 后由调用方推进基准（[`crate::state::DraftStore::mark_saved`]）。
 pub fn save(
     path: &Path,
     snapshot: &SettingsSnapshot,
     patch: &ConfigPatch,
     admin: &AdminClient,
+    appearance: Option<&AppearanceDraft>,
 ) -> SaveOutcome {
     let draft = match patch.draft(snapshot) {
         Ok(draft) => draft,
@@ -46,6 +55,17 @@ pub fn save(
     if !errors.is_empty() {
         return SaveOutcome::Invalid(errors);
     }
+    if let Some(appearance) = appearance
+        && let Some(base) = appearance.base()
+    {
+        let result = Fcitx5Client::connect()
+            .and_then(|client| fcitx5::preflight(&client, base, &appearance.values()));
+        if let Err(error) = result
+            && !matches!(error, Fcitx5Error::NotRunning)
+        {
+            return SaveOutcome::WriteFailed(error.user_message());
+        }
+    }
     let outcome = match settings::apply(path, snapshot, patch) {
         Ok(outcome) => outcome,
         Err(error) => return SaveOutcome::WriteFailed(describe_apply_error(&error)),
@@ -53,6 +73,8 @@ pub fn save(
     match outcome {
         ApplyOutcome::Conflicts(conflicts) => SaveOutcome::Conflicts(conflicts),
         ApplyOutcome::Applied => {
+            // 顺序按 2.3：写入青简配置 → Fcitx5 应用外观 → 通知服务重载
+            let appearance = appearance.map(apply_appearance);
             let server = match admin.reload() {
                 Ok(status) => status,
                 Err(AdminError::NotRunning) => ComponentStatus::Saved,
@@ -61,8 +83,19 @@ pub fn save(
                     error.user_message()
                 )),
             };
-            SaveOutcome::Saved { server }
+            SaveOutcome::Saved { server, appearance }
         }
+    }
+}
+
+/// 应用外观草稿：Fcitx5 没跑（探测时就没基准，或保存时掉线）都报失败并保留草稿。
+fn apply_appearance(draft: &AppearanceDraft) -> ComponentStatus {
+    let Some(base) = draft.base() else {
+        return ComponentStatus::Failed(Fcitx5Error::NotRunning.user_message());
+    };
+    match Fcitx5Client::connect().and_then(|client| fcitx5::apply(&client, base, &draft.values())) {
+        Ok(()) => ComponentStatus::Applied,
+        Err(error) => ComponentStatus::Failed(error.user_message()),
     }
 }
 

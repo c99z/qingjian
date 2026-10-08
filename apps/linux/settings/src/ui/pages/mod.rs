@@ -1,6 +1,7 @@
 //! 各设置页：通用、快捷键、本地模型、日志。所有页面共享同一份草稿（[`DraftStore`]），
 //! 底栏的「撤销修改 / 应用」对全部页面一起生效。
 
+pub mod appearance;
 pub mod general;
 pub mod logs;
 pub mod model;
@@ -63,6 +64,9 @@ pub trait SettingsPage {
     fn has_invalid_input(&self) -> bool {
         false
     }
+
+    /// 一次保存成功后调用：页面可以重新拉取外部状态（如 Fcitx5 侧的实际值）。
+    fn on_saved(&self) {}
 }
 
 /// 页面回填控件时屏蔽「值变化」回调的旗标，避免回填又被当成用户编辑写回草稿。

@@ -5,7 +5,7 @@ description: 在 Linux 上安装青简，使用 Fcitx5 默认候选面板。
 ---
 
 青简 Linux 提供预编译包与源码安装，使用 Fcitx5 默认候选面板。已验证 Ubuntu 26.04 的 GNOME 桌面（Wayland）上 Fcitx5 5.1.19 的 GTK4、Qt6 应用与 Firefox；
-其他桌面、其他发行版和旧版应用尚未完成验证。当前支持本地候选、学习和本地整句模型重排，暂不提供云联想、设置窗口或自动启动。
+其他桌面、其他发行版和旧版应用尚未完成验证。当前支持本地候选、学习和本地整句模型重排，暂不提供云联想或自动启动。源码开发版另有独立设置窗口，尚未接入安装包。
 
 ## 预编译包
 
@@ -58,11 +58,24 @@ apps/linux/scripts/install.sh
 重启 Fcitx5，打开 Fcitx5 配置工具，取消「仅显示当前语言」，添加「青简」。切换到青简后输入 `nihao`，空格选中「你好」。
 单击 `Shift` 切换中英；按键规则见 [按键与快捷键](keys.md#Linux（Fcitx5）)。关闭手动启动的终端会结束青简服务；下次登录后需再次启动。
 
+## 设置窗口（源码开发版）
+
+安装 GTK4（至少 4.14）与 libadwaita（至少 1.5）的开发包后，在源码目录构建并打开：
+
+```sh
+sudo apt install libgtk-4-dev libadwaita-1-dev
+cargo build -p qingjian-linux-settings
+./target/debug/qingjian-linux-settings
+```
+
+修改后点击「应用」统一保存，窗口会分别提示青简设置和外观的生效结果。关闭窗口不影响输入法。
+外观设置适用于 Fcitx5 经典面板，会影响共用该面板的其他输入法；详情见 [偏好设置](../settings/preferences.md#Linux-设置窗口（开发版）)。
+
 ## 配置、隐私和数据
 
-首次运行生成 `~/.config/qingjian/config.toml`，修改后重启青简服务。
+首次运行生成 `~/.config/qingjian/config.toml`。源码开发版服务会自动读取保存后的修改；正在输入时，相关设置等所有输入窗口本轮输入结束后生效。较早安装包仍需重启青简服务。
 `[general] preedit` 可设为 `both`（行内和候选窗口）、`inline`（只在行内）、`window`（只在候选窗口）；应用不支持行内显示时使用候选窗口。
-每页候选数、翻页键、学习、日志和辅助语言使用同一配置文件。`learning_language = "off"` 关闭中文候选的辅助语言释义与生词标记。系统面板外观由 Fcitx5 设置控制。
+每页候选数、翻页键、学习、日志和辅助语言使用同一配置文件。`learning_language = "off"` 关闭中文候选的辅助语言释义与生词标记。系统面板外观由 Fcitx5 设置控制，也可通过源码开发版的「候选与外观」页修改。
 当前预编译包随附含章·通变与含章·知微：优先用通变处理拼音整句与纠错，没有通变时回退到知微。自己的 `.qjm` 也可放入 `~/.local/share/qingjian/models/` 下对应的模型目录。`[model] enabled = false` 可关闭本地模型，见 [本地整句模型](../input/local-model.md)。
 
 `[general] shift_letter = "compose"` 让 Shift 大写字母参与中文组句，默认 `"passthrough"` 保持临时英文输入。

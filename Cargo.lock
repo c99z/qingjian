@@ -3093,11 +3093,13 @@ dependencies = [
 name = "qingjian-linux-settings"
 version = "0.1.5-dev"
 dependencies = [
+ "gio",
  "gtk4",
  "libadwaita",
  "qingjian-platform",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.20",
  "toml_edit",
  "tracing",

@@ -7,10 +7,15 @@ use qingjian_platform::settings::{ConfigPatch, FieldEdit, SettingsSnapshot};
 use qingjian_platform::{Config, ConfigError};
 use toml_edit::{DocumentMut, Value};
 
+use super::appearance::AppearanceDraft;
+
 pub struct DraftStore {
     snapshot: SettingsSnapshot,
 
     patch: ConfigPatch,
+
+    /// Fcitx5 外观草稿：不进 `config.toml`，保存时走 D-Bus 单独应用、单独报告。
+    appearance: AppearanceDraft,
 }
 
 impl DraftStore {
@@ -23,6 +28,7 @@ impl DraftStore {
         Self {
             snapshot,
             patch: ConfigPatch::new(),
+            appearance: AppearanceDraft::new(),
         }
     }
 
@@ -43,9 +49,17 @@ impl DraftStore {
         &self.patch
     }
 
-    /// 有没有未保存的修改。
+    pub fn appearance(&self) -> &AppearanceDraft {
+        &self.appearance
+    }
+
+    pub fn appearance_mut(&mut self) -> &mut AppearanceDraft {
+        &mut self.appearance
+    }
+
+    /// 有没有未保存的修改（配置或外观任一）。
     pub fn is_dirty(&self) -> bool {
-        !self.patch.is_empty()
+        !self.patch.is_empty() || self.appearance.is_dirty()
     }
 
     /// 记一处字段修改。同一字段只留最后一次；改回快照里的原值时移除这条编辑，
@@ -61,9 +75,10 @@ impl DraftStore {
         }
     }
 
-    /// 撤销全部未保存的修改，回到快照。
+    /// 撤销全部未保存的修改，回到快照（含外观草稿）。
     pub fn revert(&mut self) {
         self.patch = ConfigPatch::new();
+        self.appearance.clear();
     }
 
     /// 重新读配置文件：放弃草稿，以最新文件内容为基准（冲突对话框里的「重新载入」）。
@@ -71,12 +86,20 @@ impl DraftStore {
         let path = self.snapshot.path.clone();
         self.snapshot = SettingsSnapshot::load(&path)?;
         self.patch = ConfigPatch::new();
+        self.appearance.clear();
         Ok(())
     }
 
-    /// 保存成功后推进基准：重新读快照、清空草稿。
-    pub fn mark_saved(&mut self) -> Result<(), ConfigError> {
-        self.reload()
+    /// 保存成功后推进基准：重新读快照、清空配置草稿。
+    /// `appearance_applied` 为假时（Fcitx5 没跑或应用失败）外观草稿保留，等用户重试。
+    pub fn mark_saved(&mut self, appearance_applied: bool) -> Result<(), ConfigError> {
+        let appearance = std::mem::take(&mut self.appearance);
+        self.reload()?;
+        self.appearance = appearance;
+        if appearance_applied {
+            self.appearance.clear();
+        }
+        Ok(())
     }
 
     /// 草稿套到快照上的完整配置（校验用）。

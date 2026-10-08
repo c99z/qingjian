@@ -1,3 +1,4 @@
-//! 外部接口适配器：本阶段只有 Server 的管理 socket 客户端（Fcitx5 D-Bus 在 P4）。
+//! 外部接口适配器：Server 的管理 socket 客户端与 Fcitx5 经典面板的 D-Bus 适配。
 
 pub mod admin;
+pub mod fcitx5;
