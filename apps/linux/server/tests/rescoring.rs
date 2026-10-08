@@ -176,7 +176,7 @@ fn poll_keeps_the_display_identity_until_the_frame_changes() {
             .unwrap()["KeyResult"]["identity"]
             .take();
     }
-    // 组句期间插件每 80 ms 问一次：内容没变就沿用身份，插件不重画、不重复回报曝光
+    // 组句期间插件每 20 ms 问一次：内容没变就沿用身份，插件不重画、不重复回报曝光
     for _ in 0..3 {
         let update = poll_json(&mut router);
         assert_eq!(update["Update"]["identity"], shown);

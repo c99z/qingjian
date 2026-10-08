@@ -16,8 +16,8 @@
 
 namespace fcitx {
 namespace {
-/// 组句期间多久问一次 Server：与 Windows DLL 的轮询间隔相同，本地整句模型的结果晚一拍到。
-constexpr uint64_t POLL_INTERVAL_US = 80000;
+/// 组句期间多久问一次 Server：与 Server 等模型结果的轮询间隔相同，减少重排完成后的显示等待。
+constexpr uint64_t POLL_INTERVAL_US = 20000;
 /// 定时器精度：sd-event 把 0 当缺省的 250 ms，允许晚到四分之一秒，轮询就没了节拍。
 constexpr uint64_t POLL_ACCURACY_US = 1000;
 std::string contextIdentity(const InputContext *context) {

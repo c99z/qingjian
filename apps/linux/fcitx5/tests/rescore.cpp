@@ -18,7 +18,7 @@ int main() {
     assert(engine.process(&context, fcitx::Key(FcitxKey_n)));
     auto candidates = context.inputPanel().candidateList();
     assert(candidates && candidates->candidate(2).text().toString() == "你好");
-    // 事件循环只能 exec 一次：300 ms 时换序帧早到了（插件约每 80 ms Poll 一次，第一条就回换序帧），
+    // 事件循环只能 exec 一次：300 ms 时换序帧早到了（插件约每 20 ms Poll 一次，第一条就回换序帧），
     // 断言后销毁上下文，再跑一拍让排队的 CloseSession 发出去。
     int fired = 0;
     // 精度给 1 ms：缺省的 250 ms 会让这一拍晚到，300 ms 内的 Poll 次数就数不准。
