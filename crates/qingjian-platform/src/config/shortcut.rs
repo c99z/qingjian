@@ -22,6 +22,9 @@ pub struct ShortcutConfig {
     /// 数字键配这些修饰键：上屏候选的第二个译词（候选右侧有两个译词时）。
     pub translation_second: Modifiers,
 
+    /// 空格配这些修饰键：上屏当前高亮候选的第一个译词（Linux）。
+    pub translation_space: Modifiers,
+
     /// 把应用里选中的文字译成学习语言（需要云服务开着）。
     pub translate_selection: KeyCombo,
 
@@ -41,6 +44,7 @@ impl Default for ShortcutConfig {
             switch_mode: SwitchKeys::default(),
             translation,
             translation_second,
+            translation_space: Modifiers::SHIFT,
             translate_selection: KeyCombo::TRANSLATE_DEFAULT,
             delete_candidate: Modifiers::SHIFT,
         }
@@ -86,6 +90,7 @@ mod tests {
         let parsed: ShortcutConfig = toml::from_str("expression = \"i\"\n").unwrap();
         assert_eq!(parsed.mode.expression, 'i');
         assert_eq!(parsed.switch_mode, SwitchKeys::default());
+        assert_eq!(parsed.translation_space, Modifiers::SHIFT);
         assert_eq!(
             parsed.translation_keys(),
             (default.translation, default.translation_second)
@@ -100,6 +105,8 @@ mod tests {
             toml::from_str("translation = \"control+option\"\ntranslation_second = \"option\"\n")
                 .unwrap();
         assert_eq!(swapped.translation_keys().1, Modifiers::OPTION);
+        let space: ShortcutConfig = toml::from_str("translation_space = \"ctrl+alt\"\n").unwrap();
+        assert_eq!(space.translation_space.key(), "control+option");
     }
 
     #[test]

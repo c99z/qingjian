@@ -92,7 +92,9 @@ fn shift_letter_configuration_does_not_change_caps_or_english() {
     router.engine.set_shift_letter_compose(true);
     compose(&mut router, "Ni", shift);
     assert_eq!(
-        key(&mut router, 32, Some(' '), shift).1.as_deref(),
+        key(&mut router, 32, Some(' '), KeyModifiers::default())
+            .1
+            .as_deref(),
         Some("你")
     );
     let caps = KeyModifiers {

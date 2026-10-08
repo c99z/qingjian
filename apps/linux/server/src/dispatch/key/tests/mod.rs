@@ -3,3 +3,4 @@ mod behavior;
 mod schemes;
 mod support;
 mod tab;
+mod translation;

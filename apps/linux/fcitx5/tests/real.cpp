@@ -20,6 +20,9 @@ int main(int argc, char **argv) {
     auto sampleDir = std::filesystem::path(directory) / "assets/sample";
     std::filesystem::create_directories(sampleDir);
     std::filesystem::copy_file(std::filesystem::path(argv[2]) / "assets/sample/english.tsv", sampleDir / "english.tsv");
+    auto glossaryDir = std::filesystem::path(directory) / "assets/glossary";
+    std::filesystem::create_directories(glossaryDir);
+    std::filesystem::copy_file(std::filesystem::path(argv[2]) / "assets/sample/glossary-en.tsv", glossaryDir / "glossary-en.tsv");
     setenv("QINGJIAN_RESOURCES", directory, 1);
     setenv("QINGJIAN_DICT", dictionary.c_str(), 1);
     setenv("XDG_CONFIG_HOME", directory, 1);
@@ -46,6 +49,16 @@ int main(int argc, char **argv) {
         assert(context.committed == "你好");
         list->candidate(0).select(&context);
         assert(context.committed == "你好");
+        context.committed.clear();
+        for (char c : std::string("nihao")) assert(engine.process(&context, fcitx::Key(static_cast<fcitx::KeySym>(c))));
+        engine.process(&context, fcitx::Key(FcitxKey_Shift_L));
+        assert(engine.process(&context, fcitx::Key(FcitxKey_space, fcitx::KeyState::Shift)));
+        engine.process(&context, fcitx::Key(FcitxKey_Shift_L), true);
+        assert(context.committed == "hello");
+        // 组合键用过 Shift，松开不能切到英文；普通空格继续上屏中文。
+        for (char c : std::string("nihao")) assert(engine.process(&context, fcitx::Key(static_cast<fcitx::KeySym>(c))));
+        assert(engine.process(&context, fcitx::Key(FcitxKey_space)));
+        assert(context.committed == "hello你好");
         // 同一上下文失焦 / 回焦保留 Server 的英文模式；框架 reset 只清输入。
         engine.process(&context, fcitx::Key(FcitxKey_Shift_L));
         assert(engine.process(&context, fcitx::Key(FcitxKey_Shift_L), true));

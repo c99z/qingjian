@@ -162,6 +162,8 @@ switch_mode = ["shift"]
 # 任意修饰键组合（option / shift / control / command 用 + 连），偏好设置里点按钮录制；别用 control+数字（系统切桌面）和 command+数字（应用切标签页）
 translation = "option"
 translation_second = "shift+option"
+# Linux：空格配这些修饰键上屏高亮候选的第一条译词，普通空格仍选原词
+translation_space = "shift"
 # 把应用里选中的文字译成学习语言（要开着云服务）：译文先出现在候选窗口，回车替换选中的文字，Esc 保留原文
 # 修饰键 + 一个字母或数字，任意组合；避开 ⌘T 这类应用常用键
 translate_selection = "control+option+t"

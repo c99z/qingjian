@@ -41,6 +41,9 @@ pub struct RouterConfig {
     /// 上屏第一 / 第二个译词的修饰键（`[shortcut] translation` / `translation_second`）。
     pub translation_keys: (KeyModifiers, KeyModifiers),
 
+    /// 空格配这些修饰键：上屏高亮候选的第一条译词（`[shortcut] translation_space`）。
+    pub translation_space_keys: KeyModifiers,
+
     /// 删候选的修饰键（`[shortcut] delete_candidate`）。
     pub delete_keys: KeyModifiers,
 }
@@ -70,6 +73,7 @@ impl From<&Config> for RouterConfig {
                 let (first, second) = config.shortcut.translation_keys();
                 (first.into(), second.into())
             },
+            translation_space_keys: config.shortcut.translation_space.into(),
             delete_keys: config.shortcut.delete_keys().into(),
         }
     }

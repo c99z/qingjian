@@ -53,6 +53,9 @@ FocusOut 的行内预编辑由框架或声明 ClientUnfocusCommit 的客户端�
 帧与该会话上次发出的相同时沿用展示身份（revision 不变），插件不重画也不重复回报；本地整句模型换了顺序才推进 revision，插件按版本号推进重画并回报。
 帧为空、Reset、失焦、停用、断线时插件停表；协议版本不变。
 
+中文组句的 `[shortcut] translation_space`（缺省 `shift`）配合空格调用 Core `commit_translation`，上屏高亮候选的第一条释义。
+缺释义时保留输入；英文组句、直输段与表达式 / 问字模式不拦截。普通空格仍选原候选，Shift 松开不切换中英。
+
 ## 本地整句模型
 
 Server 启动时按 `[model] enabled`（缺省开）在后台线程加载模型并预热，`find_model` 优先找用户目录 `~/.local/share/qingjian/models/hanzhang-tongbian/` 与随包的 `resources/data/models/hanzhang-tongbian/`，然后回退知微；旧用户目录仍可读取。Linux 没有配置热加载，改开关要重启服务。

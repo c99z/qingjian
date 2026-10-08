@@ -11,6 +11,18 @@ impl Router {
     /// 表达式模式里 Shift + 数字打的是 `^ * ( )`，不当快捷键。
     pub(crate) fn apply_key(&mut self, event: &KeyEvent) -> Effect {
         if self.composing()
+            && !self.engine.english_mode()
+            && !self.engine.expression_mode()
+            && !self.engine.question_mode()
+            && !self.engine.raw_mode()
+            && !event.modifiers.english_mode
+            && !event.modifiers.caps
+            && event.virtual_key == codes::SPACE
+            && event.modifiers.chord() == self.config.translation_space_keys
+        {
+            return self.commit_highlighted_translation();
+        }
+        if self.composing()
             && !self.engine.expression_mode()
             && let Some(digit) = codes::digit_key(event.virtual_key)
             && let Some(effect) = self.apply_digit_shortcut(digit, event.modifiers.chord())

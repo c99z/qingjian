@@ -1,4 +1,4 @@
-//! 组句中「修饰键 + 数字」的快捷键：上屏译词、删候选。与 macOS 壳对齐。
+//! 组句中的译词与删除快捷键：数字按当前页选候选，空格按当前高亮选候选。
 
 use qingjian_core::{Candidate, CandidateList};
 use qingjian_platform::protocol::KeyModifiers;
@@ -7,6 +7,21 @@ use super::Effect;
 use crate::dispatch::Router;
 
 impl Router {
+    /// 上屏高亮候选的第一条译文；没有译文时保留组句，避免意外上屏中文。
+    pub(super) fn commit_highlighted_translation(&mut self) -> Effect {
+        let Some(candidate) = self.layout_candidate(self.highlight) else {
+            return Effect::Navigated;
+        };
+        let mut list = CandidateList {
+            items: vec![candidate],
+        };
+        self.engine.annotate(&mut list);
+        match self.engine.commit_translation(&list.items[0], 0) {
+            Some(text) => Effect::Changed(Some(text)),
+            None => Effect::Navigated,
+        }
+    }
+
     /// 配到哪组就上屏第一 / 第二个译词或删候选；哪组都不是返回 `None`，按普通键处理。
     pub(super) fn apply_digit_shortcut(
         &mut self,

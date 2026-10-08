@@ -141,3 +141,8 @@ Linux 当前提供本地候选，尚无云端整句补全。裸问号的既有�
 
 Linux 缺省 `Alt + 数字` / `Alt + Shift + 数字` 上屏第一 / 第二条译词，`Shift + 数字` 删除候选，
 可在配置文件 `[shortcut]` 修改。安装与配置位置见 [Linux](linux.md)。
+
+中文组句时，`Shift + Space` 上屏当前高亮候选右侧的第一条译词，普通 `Space` 上屏中文。
+例如输入 `diannao`，空格得到「电脑」，`Shift + Space` 得到 `computer`；方向键选中其他候选后也可使用。
+没有译词时保留拼音和候选。这个组合不会切换中英；没有组句或正在输入英文时保留原有空格行为。
+修饰键可在 `[shortcut] translation_space = "shift"` 修改（例如 `"alt"` 对应 `Alt + Space`），修改后重启青简服务。
