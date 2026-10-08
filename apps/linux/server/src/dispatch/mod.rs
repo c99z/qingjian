@@ -1,11 +1,13 @@
 //! Linux 会话路由：独立保存各上下文的组句，词库和学习服务保持单实例。本地整句模型在 [`rescore`]，配置热重载在 [`reload`]。
 
 mod admin;
+mod cloud;
 mod composed;
 mod config;
 mod display;
 mod key;
 mod linux;
+mod maintenance;
 mod message;
 mod reload;
 mod rescore;
@@ -79,6 +81,8 @@ pub struct Router {
 
     /// 配置热重载状态；没开（测试）为 `None`。
     reload: Option<ConfigReload>,
+
+    cloud: cloud::CloudState,
 }
 
 impl Router {
@@ -103,6 +107,7 @@ impl Router {
             model_error: None,
             rescore: RescoreState::default(),
             reload: None,
+            cloud: cloud::CloudState::default(),
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。
@@ -121,6 +126,8 @@ impl Router {
     pub fn tick(&mut self) {
         self.attach_loaded_model();
         self.advance_rescoring();
+        self.poll_cloud();
+        self.engine.poll_glosses();
         self.poll_config_reload();
         self.maybe_apply_pending();
         if self.last_flush.elapsed() >= LEARNING_FLUSH_INTERVAL {

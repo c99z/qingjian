@@ -33,6 +33,7 @@ impl Router {
                 info.last_frame = None;
                 if !focused && self.focused == Some(session) {
                     self.engine.note_displayed(std::iter::empty());
+                    self.cancel_cloud();
                 }
                 if focused {
                     self.ensure_focus(session);

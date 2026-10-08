@@ -185,6 +185,14 @@ impl Engine {
 
     /// 把学习数据与输入日志落盘。壳在停用输入法时调，激活期间也可以定时调（进程被杀时少丢）：
     /// 落盘不改学习状态，所以不像 [`Self::learner_mut`] 那样作废格子缓存。
+    pub fn flush_learning_checked(&mut self) -> Result<(), String> {
+        self.learner.flush_checked()?;
+        self.meter.flush_checked()?;
+        self.vocabulary.flush_checked()?;
+        self.translator.flush_checked()?;
+        Ok(())
+    }
+
     pub fn flush_learning(&mut self) {
         self.learner.flush();
         self.logger.flush();

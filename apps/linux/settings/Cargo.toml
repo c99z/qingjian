@@ -19,12 +19,16 @@ gio = "0.20"
 gtk = { version = "0.9", package = "gtk4", features = ["v4_14"] }
 jiff.workspace = true
 qingjian-core.workspace = true
+qingjian-dictionary.workspace = true
 qingjian-learning.workspace = true
 qingjian-platform.workspace = true
+qingjian-predict.workspace = true
+reqwest = { workspace = true, features = ["blocking", "json", "native-tls"] }
 serde.workspace = true
 serde_json.workspace = true
-tempfile = "3"
+tempfile.workspace = true
 thiserror.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+uuid.workspace = true

@@ -47,6 +47,10 @@ impl Translator for LayeredTranslator {
         self.personal.insert(word, translation);
     }
 
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.personal.save().map_err(|e| e.to_string())
+    }
+
     fn flush(&mut self) {
         if let Err(error) = self.personal.save() {
             tracing::warn!(%error, "个人释义表保存失败");

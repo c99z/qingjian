@@ -96,6 +96,12 @@ pub trait Learner: Send {
     ///
     /// 失败只记日志不返回错误：输入优先于学习，持久化失败不该影响壳的流程。
     fn flush(&mut self) {}
+
+    /// 数据维护用：失败必须报告而不能生成不完整快照。
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.flush();
+        Ok(())
+    }
 }
 
 /// 不学习。

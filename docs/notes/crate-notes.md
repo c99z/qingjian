@@ -40,6 +40,7 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 按文本去重，编码打全的形码词在前、拼音居中、只命中前缀的形码词垫后（一律形码在前的话 `kai` 的首选会变成编码 `kaik` 的词）；混输下模式键同双拼换成大写，四码以内不做拼写纠错，且五笔码最长 4 位、第 5 个字母起自然只剩拼音。
 拼音那套在纯形码下全部不适用，靠 `modes()` 返回 `ModeKeys::LETTERLESS` 与 `active_correction` 直接返回 `None` 关掉；
 译词标注、生词记录、输入日志、用户选择学习与个人 n-gram 仍照常工作。
+`Engine::flush_learning_checked` 汇总学习、统计、词汇与个人释义的落盘错误；相应 trait 的 `flush_checked` 由持久化实现报告失败。恢复使用 `replace_user_data` 替换内存存储并清理缓存，避免旧对象重新写回恢复前数据。
 `Engine` 是对外唯一门面，`Translator` / `Learner` trait 在 `engine` 模块；词库是「主词库 + 附加词库（`set_extra_dictionaries`）+ 用户词」的列表；繁体输出（`traditional` 开关与 `traditional_map` 映射）依赖 `ferrous-opencc`（`s2tw`）在出候选与上屏边界转换，内部保持简体。
 - 中英混输的英文词位置：`Engine::set_chinese_first`（配置 `[general] chinese_first`，缺省关）关着时拼音不像话的输入英文排第一（`extras::insert_english`，
   用户老选中文词时仍让中文在前），开着时整句先插、英文词紧随其后排第二（`query_inner` 里两步的先后按开关掉转）；句末英文词并入整句（`EnglishTail`）不受它影响。
@@ -186,6 +187,7 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 `[[custom_phrases]]` 的文档内替换抽在 `config::custom_phrases`，与 `Config::set_custom_phrases` 共用）；
 `ApplyReport`/`ComponentStatus`（已保存/加载中/已生效/失败）是供管理 socket 下发的生效报告类型。
 Linux 的 XDG 路径（配置/数据/日志/资源根，含 `QINGJIAN_RESOURCES` 覆盖）统一在 `dirs::linux`，Linux Server 的 `paths.rs` 只 re-export。
+`credentials` 读取显式密钥、配置同目录 `.env` 和环境变量，原子写 0600 文件，不修改进程环境。`backup` 提供 v1 JSON/Base64 归档，SHA256 清单、64 MiB 正文/96 MiB 归档限制、白名单路径、递归凭据脱敏与 `RestoreGuard` 文件回滚；`account` 是账号服务和客户端共用的登录/会话/快照类型，凭据类型不派生 Debug。
 
 ## crates/qingjian-render
 
@@ -342,7 +344,7 @@ DLL 不读文件、不查 mtime。`SessionOpened` 只回过协议版本对得上
 ## apps/linux
 
 `qingjian-linux-server` 为独立产品 `0.1.0-dev`，装配本地 Engine、词库、释义、频率学习、个人 n-gram、词汇记录与可选输入日志，
-本地整句模型优先加载用户 `~/.local/share/qingjian/models/hanzhang-tongbian/` 或随包 `data/models/hanzhang-tongbian/`，缺失时回退 `models/hanzhang-zhiwei/`；旧用户目录兼容读取。按 `[model] enabled` 在后台加载、停键 80 ms 后重排，Server 每 20 ms 收模型结果，Fcitx5 插件组句期间每 20 ms 取最新候选；不接云服务。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
+本地整句模型优先加载用户 `~/.local/share/qingjian/models/hanzhang-tongbian/` 或随包 `data/models/hanzhang-tongbian/`，缺失时回退 `models/hanzhang-zhiwei/`；旧用户目录兼容读取。按 `[model] enabled` 在后台加载、停键 80 ms 后重排，Server 每 20 ms 收模型结果，Fcitx5 插件组句期间每 20 ms 取最新候选；云候选、整句补全与释义补全使用 `qingjian-predict` 的后台线程，本地按键只收发内存通道。Linux 不读取应用上下文或历史输入；失焦、隐私变化、清空与关闭云服务时取消旧结果，关闭开关立即生效。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
 默认面板插件仅转换事件，Shift 模式、候选点击、分页和失焦提交都由 Server 决定。
 `[shortcut] translation_space` 缺省 `shift`，中文组句按修饰键 + 空格调用 Core 上屏高亮候选的第一条译词；缺释义保留组句，普通空格选原词。
 
@@ -350,11 +352,11 @@ Unix socket 用共享长度前缀与 Frame（当前公共版本 7，与 `PROTOCO
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
 
-管理 socket（`qingjian-admin.sock`，协议 `LINUX_ADMIN_PROTOCOL = 2`，serde 类型在 `qingjian_platform::protocol::linux_admin`，Server 的 `protocol/admin` 只 re-export，路径规则也在平台层）提供 `status` / `reload` / `stats` / `clear_input_log`；`dispatch/reload` 一秒轮询配置 mtime，
+管理 socket（`qingjian-admin.sock`，协议 `LINUX_ADMIN_PROTOCOL = 3`，serde 类型在 `qingjian_platform::protocol::linux_admin`，Server 的 `protocol/admin` 只 re-export，路径规则也在平台层）提供 `status` / `reload` / `stats` / `clear_input_log` / `backup` / `restore`；`dispatch/reload` 一秒轮询配置 mtime，
 学习开关立即生效，其余修改等所有会话组句结束（`dispatch/reload/tests.rs` 与 `tests/reload.rs` 覆盖组句不丢、挂起会话、坏配置保持）。
 
 `apps/linux/settings`（`qingjian-linux-settings`，GTK4/libadwaita 设置应用，基线 GTK 4.14 / libadwaita 1.5）分 `state`（草稿 `DraftStore` 与保存管线，可单测）、
-`adapters/admin`（管理 socket 客户端）、`ui`（`AdwNavigationSplitView` 侧栏，800 px 以下收起；通用 / 候选与外观 / 快捷键 / 模型 / 学习与数据 / 统计六页）；草稿走 `settings::apply` 三路比较，服务没跑时保存显示「下次启动生效」。安装接线（desktop 文件、依赖检查）在 P7。
+`adapters/admin`（管理 socket 客户端）、`ui`（`AdwNavigationSplitView` 侧栏，800 px 以下收起；通用 / 候选与外观 / 快捷键 / 模型 / 学习与数据 / 统计 / 词库 / 短语 / 云服务 / 备份与恢复 / 账号与同步十一页）；草稿走 `settings::apply` 三路比较，服务没跑时保存显示「下次启动生效」。完整安装和打包默认包含设置程序及 desktop 文件，提供 `--input-only`；源安装检查 GTK 4.14/adwaita 1.5，预编译安装检查动态库。
 
 外观适配在 `adapters/fcitx5`：会话总线 `org.fcitx.Fcitx5` `/controller` 的 `org.fcitx.Fcitx.Controller1`，
 通过 `GetConfig` 描述枚举主题，用实时值三路比较字体和颜色冲突，`SetConfig` / `ReloadAddonConfig` 后读回确认。
@@ -367,4 +369,12 @@ Fcitx5 布尔值在配置树里是字符串，`GetAddonsV2` 的索引 4 是可�
 
 P5 已接统计页与服务协调的日志清空：`adapters/statistics` 优先读管理服务的内存值，服务未运行才以 `UsageStats` / `VocabularyBook` 读取文件，标明更新时间，不实例化 Engine。
 输入日志真实路径是 `$XDG_STATE_HOME/qingjian/logs/input-log.jsonl`；`clear_input_log` 在主线程先 flush、销毁旧 BufWriter，再截断并恢复记录开关，不清输入状态、学习或统计。
-管理协议 v2 与旧设置客户端互不兼容，服务与设置程序须同时更新；按键协议不变。词库、短语、归档与恢复仍待 P5 后续。
+管理协议 v3 与旧设置客户端互不兼容，服务与设置程序须同时更新；按键协议 7 / Linux UI 协议 3 不变。
+词库独立导入/移除操作先验证临时文件再替换，通过 reload 重新装载；短语与云配置使用草稿。密钥草稿保存到 `.env`，配置写入失败时回滚密钥；连接测试直接使用未保存草稿。
+备份先 `flush_learning_checked`，固定 `data/backups/<uuid>.qjb` 返回给客户端；恢复只接受 UUID，固定读取 `data/transfers/`，拒绝聚焦或挂起的未上屏组句。恢复前另存快照，文件事务中先重新装配内存资源再交换 Engine；成功清空会话缓存，云服务关闭，本机密钥保留。当前归档在服务主线程串行生成，大数据后台压缩仍待做。
+账号客户端禁用 HTTP 重定向，远程必须 HTTPS，本机回环可 HTTP；会话存 `config` 同目录 0600 `account-session.json`，不保存密码。上传使用一致性备份与已确认云端版本，下载复用本机恢复事务；保存会话失败会明确报告已经完成的同步，仍刷新已恢复配置。
+
+## apps/account-server
+
+独立产品 `qingjian-account-server` 无 GTK、Fcitx5 或 Engine 装配，Axum 提供 `/health`、`/v1/register`、`/v1/login`、`/v1/logout` 和 GET/PUT `/v1/snapshot`。SQLite WAL 存账号、会话与每账号一个最新快照；Argon2id 密码哈希、SHA256 会话 token 哈希、30 天有效期、5 次错误登录锁定 1 分钟。上传以事务比较 `expected_revision`，过期版本返回 409；默认注册关闭，仅 `QINGJIAN_REGISTRATION=open` 打开。
+默认监听 `127.0.0.1:9080`，`QINGJIAN_ACCOUNT_DB` 指定私有数据库。HTTP 正文限制 96 MiB + 1024 字节，并发昂贵操作最多 8 个。服务端验证归档与凭据排除，客户端恢复前进一步验证词库。操作是手动整份快照替换，不做自动合并；部署与尚未提供功能见 [账号服务](account-service.md)。

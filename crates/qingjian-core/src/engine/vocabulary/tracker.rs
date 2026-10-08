@@ -15,6 +15,12 @@ pub trait VocabularyTracker: Send {
     /// 落盘。壳在停用输入法时调用，激活期间也定时调；失败只记日志。
     fn flush(&mut self) {}
 
+    /// 数据维护用：失败必须报告而不能生成不完整快照。
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.flush();
+        Ok(())
+    }
+
     /// 某种学习语言的汇总（偏好设置「统计」页）。
     fn summary(&self, _language: Language) -> VocabularySummary {
         VocabularySummary::default()

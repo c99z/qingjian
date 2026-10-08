@@ -1,6 +1,9 @@
 //! `Learner` trait 的实现：Engine 上屏 / 撤销 / 删候选时调进来的记账。
 
-use super::*;
+use super::{FrequencyLearner, MAX_CHOICE_ENTRIES, RAW_MARK};
+use qingjian_core::sentence::{Context, UserNgram};
+use qingjian_core::{Candidate, Forgotten, Learner};
+use qingjian_dictionary::{Dictionary, WordList};
 
 impl Learner for FrequencyLearner {
     fn record(&mut self, candidate: &Candidate) {
@@ -204,6 +207,20 @@ impl Learner for FrequencyLearner {
         self.english_dirty = true;
         self.rebuild_english();
         true
+    }
+
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.flush();
+        if self.dirty
+            || self.words_dirty
+            || self.english_dirty
+            || self.ngram_dirty
+            || self.choices_dirty
+            || self.typos_dirty
+        {
+            return Err("学习文件未能完整落盘".into());
+        }
+        Ok(())
     }
 
     fn flush(&mut self) {

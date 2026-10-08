@@ -4,3 +4,8 @@ pub mod admin;
 pub mod fcitx5;
 
 pub mod statistics;
+
+pub mod dictionaries;
+
+pub mod account;
+pub mod maintenance;

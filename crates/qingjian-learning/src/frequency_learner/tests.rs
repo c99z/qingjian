@@ -1,4 +1,6 @@
 use super::*;
+use qingjian_core::sentence::Context;
+use qingjian_core::{Candidate, Learner};
 
 fn candidate(text: &str) -> Candidate {
     Candidate {

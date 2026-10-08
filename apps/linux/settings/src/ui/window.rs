@@ -12,7 +12,7 @@ use gtk::{gio, glib};
 use qingjian_platform::settings::{ComponentStatus, FieldConflict, FieldError};
 
 use crate::adapters::admin::AdminClient;
-use crate::state::{DraftStore, SaveOutcome, save};
+use crate::state::{DraftStore, SaveOutcome};
 
 use super::pages::appearance::AppearancePage;
 use super::pages::general::GeneralPage;
@@ -86,6 +86,7 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
     toast.set_child(Some(&root));
     window.set_content(Some(&toast));
 
+    let stack = gtk::Stack::new();
     let store = Rc::new(RefCell::new(store));
     let saving = Rc::new(Cell::new(false));
     let notice = Rc::new(RefCell::new(None));
@@ -98,19 +99,32 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
         let banner = banner.clone();
         let saving = saving.clone();
         let notice = notice.clone();
+        let stack = stack.clone();
         Rc::new(move || {
             let dirty = store.borrow().is_dirty();
             let busy = saving.get();
+            stack.set_sensitive(!busy);
             apply.set_sensitive(dirty && !busy);
             revert.set_sensitive(dirty && !busy);
             update_banner(&store, &banner, &notice);
         }) as Rc<dyn Fn()>
     };
 
+    let window_ref: Rc<RefCell<std::rc::Weak<SettingsWindow>>> = Default::default();
+    let refresh_ref = window_ref.clone();
     let ctx = PageContext {
         store,
         notify,
         admin: Arc::new(AdminClient::new()),
+        busy: saving.clone(),
+        refresh: Rc::new(move || {
+            if let Some(window) = refresh_ref.borrow().upgrade() {
+                window.refresh_pages();
+                for page in &window.pages {
+                    page.on_saved();
+                }
+            }
+        }),
     };
 
     let pages: Vec<Rc<dyn SettingsPage>> = vec![
@@ -120,11 +134,15 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
         Rc::new(ModelPage::new(&ctx)),
         Rc::new(LogsPage::new(&ctx)),
         StatisticsPage::new(&ctx),
+        super::pages::dictionaries::DictionariesPage::new(&ctx),
+        super::pages::phrases::PhrasesPage::new(&ctx),
+        super::pages::cloud::CloudPage::new(&ctx),
+        super::pages::backup::BackupPage::new(&ctx),
+        super::pages::account::AccountPage::new(&ctx),
     ];
 
     let sidebar = gtk::ListBox::new();
     sidebar.add_css_class("navigation-sidebar");
-    let stack = gtk::Stack::new();
     for (index, page) in pages.iter().enumerate() {
         let label = gtk::Label::new(Some(page.title()));
         label.set_xalign(0.0);
@@ -163,6 +181,7 @@ pub fn build(app: &adw::Application, store: DraftStore) -> Rc<SettingsWindow> {
         notice,
     });
 
+    *window_ref.borrow_mut() = Rc::downgrade(&this);
     let weak = Rc::downgrade(&this);
     sidebar.connect_row_selected(move |_, row| {
         if let Some(this) = weak.upgrade() {
@@ -306,7 +325,7 @@ impl SettingsWindow {
         self.saving.set(true);
         self.stack.set_sensitive(false);
         (self.ctx.notify)();
-        let (path, snapshot, patch, appearance) = {
+        let (path, snapshot, patch, appearance, credential) = {
             let store = self.ctx.store.borrow();
             (
                 store.path().to_owned(),
@@ -317,13 +336,21 @@ impl SettingsWindow {
                     .appearance()
                     .is_dirty()
                     .then(|| store.appearance().clone()),
+                store.credential().cloned(),
             )
         };
         let admin = self.ctx.admin.clone();
         let this = self.clone();
         glib::MainContext::default().spawn_local(async move {
             let outcome = gio::spawn_blocking(move || {
-                save(&path, &snapshot, &patch, &admin, appearance.as_ref())
+                crate::state::save_with_credential(
+                    &path,
+                    &snapshot,
+                    &patch,
+                    &admin,
+                    appearance.as_ref(),
+                    credential.as_ref(),
+                )
             })
             .await;
             this.finish_save(outcome, close_after);
@@ -433,8 +460,16 @@ impl SettingsWindow {
             body.push_str(&format!(
                 "\n\n{}：当前是 {}，草稿想改成 {}",
                 conflict.field,
-                conflict.current.as_deref().unwrap_or("（不存在）"),
-                conflict.draft
+                if conflict.field == "predict.api_key" {
+                    "（密钥已隐藏）"
+                } else {
+                    conflict.current.as_deref().unwrap_or("（不存在）")
+                },
+                if conflict.field == "predict.api_key" {
+                    "（密钥已隐藏）"
+                } else {
+                    &conflict.draft
+                }
             ));
         }
         let dialog = adw::AlertDialog::builder()

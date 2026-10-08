@@ -22,6 +22,9 @@ pub fn validate(draft: &Config) -> Vec<FieldError> {
     general(&draft.general, &mut errors);
     shortcut(&draft.shortcut, &mut errors);
     predict(&draft.predict, &mut errors);
+    if let Err(message) = qingjian_core::custom_phrase::validate_phrases(&draft.custom_phrases) {
+        errors.push(FieldError::new("custom_phrases", message));
+    }
     errors
 }
 
@@ -111,6 +114,15 @@ fn shortcut(shortcut: &ShortcutConfig, errors: &mut Vec<FieldError>) {
 }
 
 fn predict(predict: &PredictConfig, errors: &mut Vec<FieldError>) {
+    if !predict.valid_endpoint() {
+        errors.push(FieldError::new(
+            "predict.base_url",
+            "API URL 须为完整的 http/https 基础地址，不能包含密钥、查询参数或片段",
+        ));
+    }
+    if predict.model.trim().is_empty() {
+        errors.push(FieldError::new("predict.model", "模型名称不能为空"));
+    }
     if !(MIN_TIMEOUT_MS..=MAX_TIMEOUT_MS).contains(&predict.timeout_ms) {
         errors.push(FieldError::new(
             "predict.timeout_ms",

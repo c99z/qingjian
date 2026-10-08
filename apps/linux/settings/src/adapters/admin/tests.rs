@@ -33,7 +33,7 @@ fn serve_once(
         let request: AdminRequest = read_message(&mut stream)
             .map_err(|e| e.to_string())?
             .ok_or("client closed without a request")?;
-        let command = serde_json::to_value(request.command).unwrap();
+        let command = serde_json::to_value(&request.command).unwrap();
         if command != serde_json::Value::String(expect) {
             return Err(format!("unexpected command: {command}"));
         }

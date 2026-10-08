@@ -1,10 +1,15 @@
 //! 各设置页：通用、快捷键、本地模型、日志。所有页面共享同一份草稿（[`DraftStore`]），
 //! 底栏的「撤销修改 / 应用」对全部页面一起生效。
 
+pub mod account;
 pub mod appearance;
+pub mod backup;
+pub mod cloud;
+pub mod dictionaries;
 pub mod general;
 pub mod logs;
 pub mod model;
+pub mod phrases;
 pub mod shortcuts;
 pub mod statistics;
 
@@ -27,6 +32,10 @@ pub struct PageContext {
     pub notify: Rc<dyn Fn()>,
 
     pub admin: Arc<AdminClient>,
+
+    pub busy: Rc<Cell<bool>>,
+
+    pub refresh: Rc<dyn Fn()>,
 }
 
 impl PageContext {

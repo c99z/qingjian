@@ -119,4 +119,5 @@ fn status_reload_and_stats_round_trip() {
     std::fs::remove_dir_all(directory).unwrap();
 }
 
+mod backup;
 mod maintenance;

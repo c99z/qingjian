@@ -72,12 +72,31 @@ impl AdminClient {
         }
     }
 
+    pub fn backup(&self) -> Result<std::path::PathBuf, AdminError> {
+        match self.request(AdminCommand::Backup)? {
+            AdminResponse::Backup(path) => Ok(path.into()),
+            AdminResponse::Error(message) => Err(AdminError::Rejected(message)),
+            other => Err(AdminError::Unexpected(format!("{other:?}"))),
+        }
+    }
+    pub fn restore(&self, transfer: String) -> Result<ComponentStatus, AdminError> {
+        match self.request(AdminCommand::Restore { transfer })? {
+            AdminResponse::Maintenance(report) => Ok(report),
+            AdminResponse::Error(message) => Err(AdminError::Rejected(message)),
+            other => Err(AdminError::Unexpected(format!("{other:?}"))),
+        }
+    }
     fn request(&self, command: AdminCommand) -> Result<AdminResponse, AdminError> {
         let mut stream = UnixStream::connect(&self.path).map_err(|error| match error.kind() {
             io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused => AdminError::NotRunning,
             _ => AdminError::Io(error),
         })?;
-        stream.set_read_timeout(Some(REQUEST_TIMEOUT))?;
+        let timeout = if matches!(command, AdminCommand::Backup | AdminCommand::Restore { .. }) {
+            Duration::from_secs(60)
+        } else {
+            REQUEST_TIMEOUT
+        };
+        stream.set_read_timeout(Some(timeout))?;
         stream.set_write_timeout(Some(REQUEST_TIMEOUT))?;
         let request = AdminRequest {
             version: LINUX_ADMIN_PROTOCOL,

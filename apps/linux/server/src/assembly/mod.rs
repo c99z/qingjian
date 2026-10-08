@@ -132,7 +132,7 @@ pub(crate) fn load_glossary(
 }
 
 /// 词汇记录（`user-vocab.tsv`），有等级表就按级统计。
-fn load_vocabulary(user_dir: &Path, levels_dir: Option<&Path>) -> VocabularyBook {
+pub(crate) fn load_vocabulary(user_dir: &Path, levels_dir: Option<&Path>) -> VocabularyBook {
     let mut vocabulary = VocabularyBook::open(user_dir.join("user-vocab.tsv"));
     let Some(levels_dir) = levels_dir else {
         return vocabulary;

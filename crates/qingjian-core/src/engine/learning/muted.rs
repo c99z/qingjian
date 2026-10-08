@@ -157,6 +157,10 @@ impl Learner for MutedLearner {
         self.inner.forget_english(word)
     }
 
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.inner.flush_checked()
+    }
+
     fn flush(&mut self) {
         self.inner.flush();
     }

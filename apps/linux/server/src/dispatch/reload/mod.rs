@@ -32,7 +32,7 @@ fn mtime(path: &Path) -> Option<SystemTime> {
 }
 
 /// 配置指向的学习语言；`off` 为 `None`。与启动装配同一套解析。
-fn learning_language(config: &Config) -> Option<Language> {
+pub(super) fn learning_language(config: &Config) -> Option<Language> {
     (!config.general.learning_language_off()).then(|| {
         config
             .general
@@ -43,7 +43,7 @@ fn learning_language(config: &Config) -> Option<Language> {
 }
 
 /// 学习语言的释义表路径（`.qj` 优先，回退随包 TSV）。
-fn glossary_path(root: &Path, language: Language) -> Option<PathBuf> {
+pub(super) fn glossary_path(root: &Path, language: Language) -> Option<PathBuf> {
     linux::generated(root, &format!("glossary-{}.qj", language.code()))
         .or_else(|| linux::asset(root, &format!("glossary/glossary-{}.tsv", language.code())))
 }
@@ -52,6 +52,7 @@ impl Router {
     /// 开启热重载：记下配置路径与已应用的配置快照（语言 / 词库 / 模型 / 输入日志），以及数据目录。
     pub fn watch_config(&mut self, config: &Config, config_path: PathBuf, dirs: ReloadDirs) {
         self.reload = Some(ConfigReload::new(config, config_path, dirs));
+        self.configure_cloud(&config.predict);
     }
 
     /// 当前配置代次；没开热重载（测试）恒为 0。
@@ -123,6 +124,10 @@ impl Router {
     /// 解析成功：学习开关立即生效；其余看组句边界，正在组句就先挂起（后来的配置整个替换先挂起的）。
     fn stage_config(&mut self, config: Config) -> ComponentStatus {
         self.engine.set_learning(config.general.learning);
+        // 关闭云服务立即撤掉请求和候选，不等其他会话结束组句。
+        if !config.predict.enabled {
+            self.configure_cloud(&config.predict);
+        }
         if self.any_composing() {
             if let Some(reload) = &mut self.reload {
                 reload.pending = Some(Box::new(config));
@@ -187,6 +192,10 @@ impl Router {
         router_config.page_size = router_config.page_size.clamp(1, 9);
         router_config.cloud_slots = 0;
         self.config = router_config;
+        self.configure_cloud(&config.predict);
+        if self.engine.prediction_enabled() {
+            self.config.cloud_slots = config.predict.slots;
+        }
 
         let language = learning_language(config);
         if self
@@ -197,10 +206,7 @@ impl Router {
             swap_translator(&mut self.engine, language, &mut self.reload);
         }
 
-        let dictionaries_changed = self
-            .reload
-            .as_ref()
-            .is_some_and(|reload| reload.applied_dictionaries != config.dictionaries);
+        let dictionaries_changed = self.reload.is_some();
         if dictionaries_changed && let Some(reload) = &mut self.reload {
             let dictionaries = extra_dictionaries::load(
                 reload.dirs.bundled_dicts.as_deref(),

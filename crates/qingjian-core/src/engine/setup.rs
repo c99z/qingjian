@@ -444,6 +444,20 @@ impl Engine {
         self.logger.inner_mut()
     }
 
+    /// 恢复已验证的用户数据；调用前平台必须确认所有会话都结束组句。
+    pub fn replace_user_data(
+        &mut self,
+        learner: Box<dyn Learner>,
+        meter: Box<dyn UsageMeter>,
+        vocabulary: Box<dyn VocabularyTracker>,
+    ) {
+        self.learner.replace(learner);
+        self.meter = meter;
+        self.vocabulary = vocabulary;
+        self.forget_span_cache();
+        self.break_chain();
+    }
+
     pub fn with_usage_meter(mut self, meter: Box<dyn UsageMeter>) -> Self {
         self.meter = meter;
         self

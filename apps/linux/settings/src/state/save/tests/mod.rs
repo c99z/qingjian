@@ -1,5 +1,7 @@
 //! 保存管线的决策：校验不过不写、冲突不写、服务没跑记「下次生效」、重载失败如实报部分成功。
 
+mod credentials;
+
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::thread;

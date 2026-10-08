@@ -246,6 +246,10 @@ impl VocabularyTracker for VocabularyBook {
         self.record_commit_on(language, word, used, today());
     }
 
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.save().map_err(|e| e.to_string())
+    }
+
     fn flush(&mut self) {
         if let Err(error) = self.save() {
             tracing::warn!(%error, "词汇记录保存失败");

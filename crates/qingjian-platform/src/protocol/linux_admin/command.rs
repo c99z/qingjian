@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// 管理接口能力；加新能力时加 variant 并升协议版本。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdminCommand {
     /// 查询版本、配置生效状态、模型与云服务状态。
@@ -17,4 +17,10 @@ pub enum AdminCommand {
 
     /// 串行清空输入日志并重新打开写入端，不影响当前组句与学习统计。
     ClearInputLog,
+
+    Backup,
+
+    Restore {
+        transfer: String,
+    },
 }

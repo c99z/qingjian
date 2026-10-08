@@ -5,7 +5,7 @@ description: 在 Linux 上安装青简，使用 Fcitx5 默认候选面板。
 ---
 
 青简 Linux 提供预编译包与源码安装，使用 Fcitx5 默认候选面板。已验证 Ubuntu 26.04 的 GNOME 桌面（Wayland）上 Fcitx5 5.1.19 的 GTK4、Qt6 应用与 Firefox；
-其他桌面、其他发行版和旧版应用尚未完成验证。当前支持本地候选、学习和本地整句模型重排，暂不提供云联想或自动启动。源码开发版另有独立设置窗口，尚未接入安装包。
+其他桌面、其他发行版和旧版应用尚未完成验证。当前源码支持本地候选、学习、本地整句模型重排及可选云联想，并提供独立设置窗口。服务仍需手动启动；较早发布的预编译包不包含新增设置功能。
 
 ## 预编译包
 
@@ -35,7 +35,8 @@ Debian / Ubuntu 上是：
 ```sh
 sudo apt install cmake g++ pkg-config python3 libssl-dev \
   libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev nlohmann-json3-dev \
-  fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt6 fcitx5-config-qt
+  fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt6 fcitx5-config-qt \
+  libgtk-4-dev libadwaita-1-dev
 ```
 
 缺了哪一项，安装脚本开头会直接列出来。
@@ -58,9 +59,15 @@ apps/linux/scripts/install.sh
 重启 Fcitx5，打开 Fcitx5 配置工具，取消「仅显示当前语言」，添加「青简」。切换到青简后输入 `nihao`，空格选中「你好」。
 单击 `Shift` 切换中英；按键规则见 [按键与快捷键](keys.md#Linux（Fcitx5）)。关闭手动启动的终端会结束青简服务；下次登录后需再次启动。
 
-## 设置窗口（源码开发版）
+## 设置窗口
 
-安装 GTK4（至少 4.14）与 libadwaita（至少 1.5）的开发包后，在源码目录构建并打开：
+新版完整安装后，可以从应用菜单打开「青简设置」，或运行：
+
+```sh
+~/.local/bin/qingjian-linux-settings
+```
+
+开发时也可以在源码目录构建并打开，需要 GTK4（至少 4.14）与 libadwaita（至少 1.5）：
 
 ```sh
 sudo apt install libgtk-4-dev libadwaita-1-dev
@@ -99,3 +106,7 @@ apps/linux/scripts/uninstall.sh --prefix /安装时的绝对目录
 ```
 
 卸载后手动结束青简服务并重启 Fcitx5。卸载保留配置、个人词库、学习数据、已修改的安装文件和其他输入法。
+
+完整源码安装默认包含 GTK 设置程序和桌面菜单入口，需要 `libgtk-4-dev` 与 `libadwaita-1-dev`；只安装输入组件可加 `--input-only`。设置与本机服务需使用同一新版，旧服务缺少管理接口时，统计、备份恢复和云配置生效会提示不可用。请完成未上屏输入后手动退出旧服务，再启动新安装的 `qingjian-linux-server`。
+
+设置的「账号与同步」页支持连接自建的无界面账号服务，注册、登录并在设备间上传或恢复数据，详见 [账号、备份与同步](../settings/account-and-backup.md)。账号服务单独部署，不随输入法安装自动启动。

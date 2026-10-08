@@ -145,6 +145,10 @@ impl UsageMeter for UsageStats {
         self.record_on(today(), usage);
     }
 
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.save().map_err(|e| e.to_string())
+    }
+
     fn flush(&mut self) {
         if let Err(error) = self.save() {
             tracing::warn!(%error, "输入统计保存失败");

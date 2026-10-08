@@ -3,10 +3,12 @@
 set -euo pipefail
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 install_prefix="$HOME/.local"
+input_only=false
 while (($#)); do
   case "$1" in
     --prefix) install_prefix=${2:?--prefix 需要路径}; shift 2 ;;
-    --help) echo '用法：install.sh [--prefix 绝对用户目录]'; exit 0 ;;
+    --input-only) input_only=true; shift ;;
+    --help) echo '用法：install.sh [--prefix 绝对用户目录] [--input-only]'; exit 0 ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
   esac
 done
@@ -20,9 +22,17 @@ if ((${#missing[@]})); then
   echo 'Debian / Ubuntu：sudo apt install python3 fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt6 fcitx5-config-qt' >&2
   exit 1
 fi
+settings_binary="-"
+if ! $input_only; then
+  settings_binary="$here/bin/qingjian-linux-settings"
+  if ! ldd "$settings_binary" 2>/dev/null | python3 -c 'import sys; sys.exit("not found" in sys.stdin.read())'; then
+    echo '设置程序缺少运行库；Ubuntu 24.04/26.04 请安装 libgtk-4-1 libadwaita-1-0，或加 --input-only 仅安装输入组件。' >&2
+    exit 1
+  fi
+fi
 install_prefix=$(realpath -m -- "$install_prefix")
 mkdir -p "$here/data"
 # 数据包在 macOS 上打，带 LIBARCHIVE.xattr 扩展头，GNU tar 会逐个警告
 tar --warning=no-unknown-keyword -xzf "$here/target/release-data/qingjian-data.tar.gz" -C "$here"
-python3 "$here/files.py" install "$install_prefix" "$here" "$here/bin/qingjian-linux-server" "$here/lib/qingjian.so" false
+python3 "$here/files.py" install "$install_prefix" "$here" "$here/bin/qingjian-linux-server" "$here/lib/qingjian.so" false "$settings_binary"
 printf '已安装。手动启动：%s/bin/qingjian-linux-server\n重启 Fcitx5，在配置工具取消“仅显示当前语言”后添加“青简”。\n' "$install_prefix"

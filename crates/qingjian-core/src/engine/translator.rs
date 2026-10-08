@@ -13,6 +13,11 @@ pub trait Translator: Send {
 
     /// 把个人释义表落盘；失败只记日志。
     fn flush(&mut self) {}
+
+    fn flush_checked(&mut self) -> Result<(), String> {
+        self.flush();
+        Ok(())
+    }
 }
 
 /// 不做翻译。

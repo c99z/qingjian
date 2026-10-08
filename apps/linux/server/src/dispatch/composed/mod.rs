@@ -16,6 +16,7 @@ impl Router {
         self.sentence = None;
         if self.engine.composition().is_empty() {
             self.composed = None;
+            self.cancel_cloud();
             self.stop_rescoring();
             return;
         }
@@ -48,6 +49,7 @@ impl Router {
             .find(|&index| self.layout_candidate(index).is_some())
             .unwrap_or(0);
         self.schedule_rescoring();
+        self.request_cloud();
     }
 
     /// 高亮移动 `delta`，夹在 `[0, 末尾]`，到页边自然换页。

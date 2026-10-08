@@ -12,6 +12,7 @@ members = [
     "crates/qingjian-neural",
     "crates/qingjian-render",
     "crates/qingjian-update",
+    "apps/account-server",
     "apps/linux/server", "apps/linux/settings", "apps/cli", "apps/macos", "apps/windows/server", "apps/windows/tsf", "apps/windows/settings", "tools/dict-convert", "tools/gloss-gen", "tools/release-sign",
 ]
 
@@ -39,6 +40,11 @@ qingjian-render = { path = "crates/qingjian-render" }
 qingjian-update = { path = "crates/qingjian-update" }
 
 # 外部依赖统一在这里定版本，子 crate 一律 `xxx.workspace = true`
+axum = "0.8.9"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+argon2 = "0.6.0"
+sha2 = "0.11.0"
+tempfile = "3.27.0"
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.20"
 tracing = "0.1.44"

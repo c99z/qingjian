@@ -3,9 +3,11 @@
 //! [`save`] 管「校验 → 落盘 → 应用外观 → 通知重载」的顺序，两段结果分别报告。
 
 mod appearance;
+mod credential;
 mod draft;
 mod save;
 
 pub use appearance::AppearanceDraft;
+pub use credential::CredentialEdit;
 pub use draft::DraftStore;
-pub use save::{SaveOutcome, save};
+pub use save::{SaveOutcome, save, save_with_credential};

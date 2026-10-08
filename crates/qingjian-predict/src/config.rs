@@ -64,6 +64,18 @@ impl Default for PredictConfig {
 }
 
 impl PredictConfig {
+    /// 基础地址不接受内嵌凭据或查询参数，防止密钥进入 URL 日志。
+    pub fn valid_endpoint(&self) -> bool {
+        reqwest::Url::parse(&self.base_url).is_ok_and(|url| {
+            matches!(url.scheme(), "http" | "https")
+                && url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+        })
+    }
+
     /// 配置里的密钥优先，其次环境变量；两边都没有返回 `None`。
     pub fn resolve_api_key(&self) -> Option<String> {
         self.api_key

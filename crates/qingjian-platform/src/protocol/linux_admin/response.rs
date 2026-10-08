@@ -11,6 +11,8 @@ pub enum AdminResponse {
 
     Stats(StatsReport),
 
+    Backup(String),
+
     Maintenance(crate::settings::ComponentStatus),
 
     /// 协议版本不符、请求无法解析或服务不可用；给用户看的中文原因。

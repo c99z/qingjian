@@ -47,6 +47,76 @@ pub fn save(
     admin: &AdminClient,
     appearance: Option<&AppearanceDraft>,
 ) -> SaveOutcome {
+    save_with_credential(path, snapshot, patch, admin, appearance, None)
+}
+
+/// 凭据与配置一同应用，失败时恢复原凭据；密钥不进入错误详情。
+pub fn save_with_credential(
+    path: &Path,
+    snapshot: &SettingsSnapshot,
+    patch: &ConfigPatch,
+    admin: &AdminClient,
+    appearance: Option<&AppearanceDraft>,
+    credential: Option<&super::credential::CredentialEdit>,
+) -> SaveOutcome {
+    let credential_path = path.with_file_name(".env");
+    let previous = if credential.is_some() {
+        match std::fs::read(&credential_path) {
+            Ok(bytes) => Some(bytes),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(_) => return SaveOutcome::WriteFailed("无法读取原凭据，未保存".into()),
+        }
+    } else {
+        None
+    };
+    if let Some(edit) = credential {
+        match &edit.base {
+            Err(message) => return SaveOutcome::WriteFailed(message.clone()),
+            Ok(base) if base.as_deref().map(str::as_bytes) != previous.as_deref() => {
+                return SaveOutcome::WriteFailed(
+                    "本机凭据在编辑期间被其他程序修改，请撤销并重新打开设置后再编辑密钥".into(),
+                );
+            }
+            _ => {}
+        }
+    }
+    let draft = match patch.draft(snapshot) {
+        Ok(draft) => draft,
+        Err(error) => return SaveOutcome::DraftBroken(error),
+    };
+    let errors = settings::validate(&draft);
+    if !errors.is_empty() {
+        return SaveOutcome::Invalid(errors);
+    }
+    if let Some(key) = credential
+        && let Err(message) = qingjian_platform::credentials::write_key(
+            &credential_path,
+            &draft.predict.api_key_env,
+            &key.key,
+        )
+    {
+        return SaveOutcome::WriteFailed(message);
+    }
+    let outcome = save_config(path, snapshot, patch, admin, appearance);
+    if credential.is_some() && !matches!(outcome, SaveOutcome::Saved { .. }) {
+        let restored = match previous {
+            Some(bytes) => qingjian_platform::credentials::write_private(&credential_path, &bytes),
+            None => std::fs::remove_file(&credential_path),
+        };
+        if restored.is_err() {
+            return SaveOutcome::WriteFailed("设置未保存，且原凭据恢复失败，请检查 .env".into());
+        }
+    }
+    outcome
+}
+
+fn save_config(
+    path: &Path,
+    snapshot: &SettingsSnapshot,
+    patch: &ConfigPatch,
+    admin: &AdminClient,
+    appearance: Option<&AppearanceDraft>,
+) -> SaveOutcome {
     let draft = match patch.draft(snapshot) {
         Ok(draft) => draft,
         Err(error) => return SaveOutcome::DraftBroken(error),

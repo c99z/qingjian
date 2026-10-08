@@ -20,6 +20,7 @@ impl Router {
         if self.focused == Some(session) {
             return;
         }
+        self.cancel_cloud();
         self.stop_rescoring();
         if let Some(previous) = self.focused.and_then(|id| self.sessions.get_mut(&id)) {
             self.engine.note_displayed(std::iter::empty());
@@ -64,6 +65,7 @@ impl Router {
         // 真正的隐私能力变化是输入边界。仅在切换上下文时恢复 private 不走这里，
         // 因此普通与私密会话来回切换不会丢掉各自尚未上屏的组句。
         if self.focused == Some(session) {
+            self.cancel_cloud();
             self.stop_rescoring();
             self.engine.discard_input();
             self.engine.set_private(private);
@@ -77,6 +79,7 @@ impl Router {
         }
     }
     pub(super) fn reset_composition(&mut self) {
+        self.cancel_cloud();
         self.stop_rescoring();
         self.engine.break_chain();
         self.engine.clear();

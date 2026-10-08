@@ -1,8 +1,8 @@
 //! 管理请求的分派与报告组装；管理操作与按键处理在主线程串行，只暴露协议枚举里的能力。
 use super::Router;
 use crate::protocol::admin::{
-    AdminCommand, AdminResponse, CloudStatus, ConfigStatus, LINUX_ADMIN_PROTOCOL, ModelStatus,
-    StatsReport, StatusReport,
+    AdminCommand, AdminResponse, ConfigStatus, LINUX_ADMIN_PROTOCOL, ModelStatus, StatsReport,
+    StatusReport,
 };
 use serde_json::Value;
 
@@ -14,6 +14,13 @@ impl Router {
             AdminCommand::Status => AdminResponse::Status(self.status_report()),
             AdminCommand::Reload => AdminResponse::Reload(self.reload_now()),
             AdminCommand::Stats => AdminResponse::Stats(self.stats_report()),
+            AdminCommand::Backup => match self.create_backup() {
+                Ok(path) => AdminResponse::Backup(path),
+                Err(message) => AdminResponse::Error(message),
+            },
+            AdminCommand::Restore { transfer } => {
+                AdminResponse::Maintenance(self.restore_backup(&transfer))
+            }
             AdminCommand::ClearInputLog => AdminResponse::Maintenance(self.clear_input_log()),
         };
         serde_json::to_value(response).ok()
@@ -34,7 +41,7 @@ impl Router {
                 last_error,
             },
             model: self.model_status(),
-            cloud: CloudStatus::Disabled,
+            cloud: self.cloud.status.clone(),
         }
     }
 

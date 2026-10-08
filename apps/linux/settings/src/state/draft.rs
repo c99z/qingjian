@@ -8,6 +8,7 @@ use qingjian_platform::{Config, ConfigError};
 use toml_edit::{DocumentMut, Value};
 
 use super::appearance::AppearanceDraft;
+use super::credential::{CredentialEdit, read_source};
 
 pub struct DraftStore {
     snapshot: SettingsSnapshot,
@@ -16,6 +17,11 @@ pub struct DraftStore {
 
     /// Fcitx5 外观草稿：不进 `config.toml`，保存时走 D-Bus 单独应用、单独报告。
     appearance: AppearanceDraft,
+
+    /// 仅待保存的密钥；不进入普通配置补丁。
+    credential: Option<CredentialEdit>,
+
+    credential_base: Result<Option<String>, String>,
 }
 
 impl DraftStore {
@@ -25,10 +31,13 @@ impl DraftStore {
     }
 
     pub fn new(snapshot: SettingsSnapshot) -> Self {
+        let credential_base = read_source(&snapshot.path.with_file_name(".env"));
         Self {
             snapshot,
             patch: ConfigPatch::new(),
             appearance: AppearanceDraft::new(),
+            credential: None,
+            credential_base,
         }
     }
 
@@ -59,7 +68,7 @@ impl DraftStore {
 
     /// 有没有未保存的修改（配置或外观任一）。
     pub fn is_dirty(&self) -> bool {
-        !self.patch.is_empty() || self.appearance.is_dirty()
+        !self.patch.is_empty() || self.appearance.is_dirty() || self.credential.is_some()
     }
 
     /// 记一处字段修改。同一字段只留最后一次；改回快照里的原值时移除这条编辑，
@@ -75,9 +84,34 @@ impl DraftStore {
         }
     }
 
+    pub fn set_credential(&mut self, key: String) {
+        self.credential = Some(CredentialEdit {
+            key,
+            base: self.credential_base.clone(),
+        });
+        // 清除旧显式密钥，让本机 .env 接管优先级。
+        self.set("predict", "api_key", "");
+    }
+
+    pub fn credential(&self) -> Option<&CredentialEdit> {
+        self.credential.as_ref()
+    }
+
+    pub fn cancel_credential(&mut self) {
+        self.credential = None;
+        self.patch
+            .edits
+            .retain(|edit| !(edit.section == "predict" && edit.key == "api_key"));
+    }
+
+    pub fn set_phrases(&mut self, phrases: Vec<qingjian_core::CustomPhrase>) {
+        self.patch.custom_phrases = (phrases != self.config().custom_phrases).then_some(phrases);
+    }
+
     /// 撤销全部未保存的修改，回到快照（含外观草稿）。
     pub fn revert(&mut self) {
         self.patch = ConfigPatch::new();
+        self.credential = None;
         self.appearance.clear();
     }
 
@@ -85,7 +119,9 @@ impl DraftStore {
     pub fn reload(&mut self) -> Result<(), ConfigError> {
         let path = self.snapshot.path.clone();
         self.snapshot = SettingsSnapshot::load(&path)?;
+        self.credential_base = read_source(&path.with_file_name(".env"));
         self.patch = ConfigPatch::new();
+        self.credential = None;
         self.appearance.clear();
         Ok(())
     }

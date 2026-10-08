@@ -3,8 +3,11 @@
 //! 这里的类型必须可序列化：macOS / Linux 上 Core 与壳同进程，Windows 上 Core 在独立
 //! Server 进程，同一套类型两边都用。
 
+pub mod account;
+pub mod backup;
 pub mod code_tables;
 mod config;
+pub mod credentials;
 pub mod dirs;
 mod error;
 pub mod extra_dictionaries;
