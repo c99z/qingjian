@@ -180,6 +180,12 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 `protocol` 模块是 Windows Server ↔ TSF DLL 的 IPC 协议类型
 （`ClientMessage` / `ServerMessage` / `Frame` / `PreeditSegment`，全 serde，两端共用，见 `docs/design/architecture.md`「Windows：TSF」；
 `PROTOCOL_VERSION` = 7（v7 加任务栏图标右键菜单的 `Indicator`），`PreeditKind::AuxCode` 对应 Core 的 `MarkedKind::AuxCode`，`Frame.aux_code_show` 随帧下发显示码开关）。
+`settings` 模块是设置程序共用的编辑底座（Linux 设置计划 P1）：`SettingsSnapshot`（原文 + `Config` + `FileVersion` mtime/长度/FNV-1a 哈希）、
+`ConfigPatch` 草稿、`validate` 保存前字段校验（`FieldError` 带 `section.key` 路径）、`apply` 批量保存——逐字段三路比较（快照/当前文件/草稿），
+未改字段跟随外部更新、同字段都改则整体拒绝（`ApplyOutcome::Conflicts`）、当前文件损坏拒写，无冲突才 toml_edit 一次性原子写（注释/未知字段/顺序保留；
+`[[custom_phrases]]` 的文档内替换抽在 `config::custom_phrases`，与 `Config::set_custom_phrases` 共用）；
+`ApplyReport`/`ComponentStatus`（已保存/加载中/已生效/失败）是供管理 socket 下发的生效报告类型。
+Linux 的 XDG 路径（配置/数据/日志/资源根，含 `QINGJIAN_RESOURCES` 覆盖）统一在 `dirs::linux`，Linux Server 的 `paths.rs` 只 re-export。
 
 ## crates/qingjian-render
 

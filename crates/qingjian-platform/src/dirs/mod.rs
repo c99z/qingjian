@@ -6,7 +6,10 @@
 //!   放本机目录有两个原因：日志本来就是这台机器的东西，不该跟账户漫游；DLL 被加载进
 //!   AppContainer 应用（任务栏搜索 / 设置）时写不了漫游目录，Server 启动时会给这个目录授权。
 //!
-//! 只查环境变量、不碰系统 API，其他平台也能编（拿不到为 `None`）。macOS 有自己的 `paths.rs`，不走这里。
+//! 只查环境变量、不碰系统 API，其他平台也能编（拿不到为 `None`）。macOS 有自己的 `paths.rs`，不走这里；
+//! Linux 的 XDG 路径约定在 [`linux`] 子模块（Server 与设置程序共用）。
+
+pub mod linux;
 
 use std::path::PathBuf;
 
