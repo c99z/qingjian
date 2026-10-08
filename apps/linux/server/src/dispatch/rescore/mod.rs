@@ -41,7 +41,7 @@ pub fn find_model(user_dir: Option<&Path>, bundled_root: &Path) -> Option<PathBu
 }
 
 impl Router {
-    /// 启动时：记下模型文件，按 `[model] enabled` 决定要不要加载。Linux 没有配置热加载，关了要重启服务。
+    /// 启动时：记下模型文件，按 `[model] enabled` 决定要不要加载。开关的热重载在 [`super::reload`]。
     pub fn configure_local_model(
         &mut self,
         model_path: Option<PathBuf>,
@@ -55,19 +55,26 @@ impl Router {
         }
     }
 
-    /// 在后台线程加载模型；没有模型文件就什么都不做。
-    fn load_local_model(&mut self) {
+    /// 在后台线程加载模型，带上当前配置代次；没有模型文件就什么都不做。
+    pub(super) fn load_local_model(&mut self) {
         if self.model_loader.is_some() || self.engine.has_sentence_scorer() {
             return;
         }
         let Some(path) = &self.model_path else {
             tracing::info!("没有本地整句模型文件，不重排");
+            self.model_error = Some("没有本地整句模型文件".to_owned());
             return;
         };
         self.model_loader = ModelLoader::spawn(path);
+        if self.model_loader.is_some() {
+            self.model_generation = self.reload_generation();
+        } else {
+            self.model_error = Some("起不了模型加载线程".to_owned());
+        }
     }
 
     /// 加载线程有结果了就接到 Engine 上；每次按键 / tick 顺手看一眼，不阻塞。
+    /// 旧配置代次（加载期间又改过配置）的结果直接丢弃，不覆盖新设置。
     pub(super) fn attach_loaded_model(&mut self) {
         let Some(loader) = &self.model_loader else {
             return;
@@ -75,9 +82,19 @@ impl Router {
         match loader.poll() {
             Loaded::Pending => {}
             Loaded::Done(result) => {
-                match result {
-                    Ok(scorer) => self.attach_sentence_scorer(scorer),
-                    Err(error) => tracing::warn!(%error, "本地整句模型加载失败，不重排"),
+                if self.model_generation != self.reload_generation() {
+                    tracing::info!("旧配置代次的模型加载完成，丢弃");
+                } else {
+                    match result {
+                        Ok(scorer) => {
+                            self.model_error = None;
+                            self.attach_sentence_scorer(scorer);
+                        }
+                        Err(error) => {
+                            tracing::warn!(%error, "本地整句模型加载失败，不重排");
+                            self.model_error = Some(error.to_string());
+                        }
+                    }
                 }
                 self.model_loader = None;
             }

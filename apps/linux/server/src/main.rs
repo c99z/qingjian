@@ -6,7 +6,8 @@ mod paths;
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     use qingjian_core::Language;
     use qingjian_linux_server::{
-        AssemblySpec, LanguageModelFiles, Router, RouterConfig, assembly, find_model,
+        AssemblySpec, LanguageModelFiles, Router, RouterConfig, assembly, dispatch::ReloadDirs,
+        find_model,
     };
     use qingjian_platform::Config;
     use std::path::PathBuf;
@@ -90,6 +91,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     engine.log_session(env!("CARGO_PKG_VERSION"), "linux");
     let mut router = Router::new(engine, RouterConfig::from(&config));
     router.configure_local_model(find_model(Some(&user_dir), &root), &config.model);
+    router.watch_config(
+        &config,
+        config_path,
+        ReloadDirs {
+            resource_root: root.clone(),
+            user_dir: Some(user_dir.clone()),
+            bundled_dicts: spec.bundled_dicts_dir.clone(),
+            input_log: Some(paths::log_dir().join("input-log.jsonl")),
+        },
+    );
     extern "C" fn stop(_: libc::c_int) {
         qingjian_linux_server::ipc::request_shutdown();
     }
@@ -98,8 +109,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         libc::signal(libc::SIGINT, stop as *const () as libc::sighandler_t);
     }
     let socket = qingjian_linux_server::ipc::socket_path();
-    tracing::info!(path = %socket.display(), "青简 Linux Server 启动");
-    qingjian_linux_server::ipc::serve_socket(socket, &mut router)?;
+    let admin_socket = qingjian_linux_server::ipc::admin_socket_path();
+    tracing::info!(path = %socket.display(), admin = %admin_socket.display(), "青简 Linux Server 启动");
+    qingjian_linux_server::ipc::serve_socket(socket, admin_socket, &mut router)?;
     Ok(())
 }
 fn main() {

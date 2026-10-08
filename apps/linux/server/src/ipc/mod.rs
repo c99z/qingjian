@@ -4,8 +4,10 @@ use qingjian_platform::protocol::{ClientMessage, ServerMessage};
 use std::io;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
+mod admin;
 mod connection;
 mod session;
+use admin::serve_admin_connection;
 use connection::serve_connection;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -37,6 +39,13 @@ pub fn socket_path() -> PathBuf {
                 })
                 .join("qingjian.sock")
         })
+}
+
+/// 管理 socket 路径：与按键 socket 同目录的 `qingjian-admin.sock`；`QINGJIAN_ADMIN_SOCKET` 可覆盖（测试用）。
+pub fn admin_socket_path() -> PathBuf {
+    std::env::var_os("QINGJIAN_ADMIN_SOCKET")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| socket_path().with_file_name("qingjian-admin.sock"))
 }
 
 /// 仅移除同用户、确认拒绝连接的陈旧 socket；拒绝符号链接和不安全的父目录。
@@ -85,10 +94,16 @@ pub fn bind_socket(path: &Path) -> io::Result<UnixListener> {
     Ok(listener)
 }
 
-pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<()> {
+pub fn serve_socket(
+    path: impl AsRef<Path>,
+    admin_path: impl AsRef<Path>,
+    router: &mut Router,
+) -> io::Result<()> {
     let listener = bind_socket(path.as_ref())?;
+    let admin_listener = bind_socket(admin_path.as_ref())?;
     let settings = router.display_settings();
     let (sender, receiver) = mpsc::sync_channel::<Request>(128);
+    let key_sender = sender.clone();
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
@@ -97,7 +112,7 @@ pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<(
                         CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
                         continue;
                     }
-                    let sender = sender.clone();
+                    let sender = key_sender.clone();
                     let settings = settings.clone();
                     thread::spawn(move || {
                         serve_connection(stream, sender, settings);
@@ -106,6 +121,28 @@ pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<(
                 }
                 Err(error) => {
                     tracing::error!(%error, "接受客户端连接失败");
+                    break;
+                }
+            }
+        }
+    });
+    // 管理连接与按键连接共用主线程队列，管理操作与按键处理串行。
+    thread::spawn(move || {
+        for stream in admin_listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    if CONNECTIONS.fetch_add(1, Ordering::Relaxed) >= MAX_CLIENT_CONNECTIONS {
+                        CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+                        continue;
+                    }
+                    let sender = sender.clone();
+                    thread::spawn(move || {
+                        serve_admin_connection(stream, sender);
+                        CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+                    });
+                }
+                Err(error) => {
+                    tracing::error!(%error, "接受管理连接失败");
                     break;
                 }
             }
@@ -123,7 +160,12 @@ pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<(
         }
         match receiver.recv_timeout(due - now) {
             Ok((message, reply)) => {
-                let _ = reply.send(router.handle_linux(message));
+                let response = if message.get("Admin").is_some() {
+                    router.handle_admin(message)
+                } else {
+                    router.handle_linux(message)
+                };
+                let _ = reply.send(response);
                 // 处理完消息节拍可能变短了（按键起了防抖）：到点时间只提前不推后
                 due = due.min(Instant::now() + router.next_tick());
             }
@@ -132,6 +174,7 @@ pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<(
         }
     }
     std::fs::remove_file(path.as_ref())?;
+    std::fs::remove_file(admin_path.as_ref())?;
     Ok(())
 }
 

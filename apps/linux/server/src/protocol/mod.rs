@@ -1,4 +1,5 @@
 //! Linux 独立的面板协议扩展；Windows ClientMessage/ServerMessage 和版本不变。
+pub mod admin;
 mod capabilities;
 mod display;
 mod event;

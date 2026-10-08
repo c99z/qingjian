@@ -53,12 +53,23 @@ FocusOut 的行内预编辑由框架或声明 ClientUnfocusCommit 的客户端�
 帧与该会话上次发出的相同时沿用展示身份（revision 不变），插件不重画也不重复回报；本地整句模型换了顺序才推进 revision，插件按版本号推进重画并回报。
 帧为空、Reset、失焦、停用、断线时插件停表；协议版本不变。
 
+## 管理 socket 与配置热重载
+
+管理 socket 与按键 socket 分开：同目录的 `qingjian-admin.sock`（`QINGJIAN_ADMIN_SOCKET` 可覆盖），同样的 0600 权限、父目录检查、陈旧清理、长度前缀 JSON 与同 uid 校验。
+协议独立版本化（`LINUX_ADMIN_PROTOCOL = 1`），版本不符或无法解析的请求回 `Error` 并断开；请求进主线程同一队列，与按键处理串行。
+首版三条命令：`status`（版本、配置代次与挂起状态、上次错误、模型状态、云服务 disabled 占位）、`reload`（立即读盘应用，返回 `ComponentStatus`）、`stats`（今日 / 近七天 / 累计输入量与词汇统计）。
+
+热重载在 `dispatch/reload`：一秒节拍轮询 `config.toml` 的 mtime（原子替换后按路径重读即可），解析失败保持上一次可用配置并把错误留在 `status` 里。
+学习开关立即生效；输入方案、快捷键、候选数量、释义语言、附加词库、模型与输入日志开关等所有会话（含挂起会话）的组句结束后才应用——组句中保存设置不丢正在输入的拼音与候选。
+每次成功应用递增配置代次；模型后台加载带代次，旧代次的结果不覆盖新设置。主词库与云服务不在重载范围内。
+释义表热换走 mmap `.qj` 或随包 TSV，加载失败保持旧语言；展示设置刷新到 `RouterConfig`，新起的帧立即生效。
+
 中文组句的 `[shortcut] translation_space`（缺省 `shift`）配合空格调用 Core `commit_translation`，上屏高亮候选的第一条释义。
 缺释义时保留输入；英文组句、直输段与表达式 / 问字模式不拦截。普通空格仍选原候选，Shift 松开不切换中英。
 
 ## 本地整句模型
 
-Server 启动时按 `[model] enabled`（缺省开）在后台线程加载模型并预热，`find_model` 优先找用户目录 `~/.local/share/qingjian/models/hanzhang-tongbian/` 与随包的 `resources/data/models/hanzhang-tongbian/`，然后回退知微；旧用户目录仍可读取。Linux 没有配置热加载，改开关要重启服务。
+Server 启动时按 `[model] enabled`（缺省开）在后台线程加载模型并预热，`find_model` 优先找用户目录 `~/.local/share/qingjian/models/hanzhang-tongbian/` 与随包的 `resources/data/models/hanzhang-tongbian/`，然后回退知微；旧用户目录仍可读取。开关随配置热重载生效（见下节），无需重启服务。
 节拍与 Windows Server 的 `dispatch/rescore` 相同：缓冲变化后起 80 ms 防抖，到点把整句路径送去后台打分，每 20 ms 收一次，最长等 2 s；
 结果到了只在用户还看着第一页、没动过高亮时重建候选布局，下一次 `Poll` 回的帧就是新顺序。主循环按 `Router::next_tick` 的绝对到点时间等消息，空闲时一秒一次落盘学习。
 模型在后台接上时用户正在组句，Server 补查一次攒下整句路径再起防抖，这一轮不错过重排。前文用本会话最近上屏的字，首版不读应用光标前文。

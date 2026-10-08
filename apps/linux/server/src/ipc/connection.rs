@@ -12,18 +12,15 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 
-pub(super) fn serve_connection(
-    mut stream: UnixStream,
-    sender: SyncSender<Request>,
-    settings: Value,
-) {
+/// SO_PEERCRED 同 uid 校验；按键与管理连接共用。
+pub(super) fn trusted_peer(stream: &UnixStream) -> bool {
     let mut credentials = libc::ucred {
         pid: 0,
         uid: 0,
         gid: 0,
     };
     let mut size = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
-    let trusted = unsafe {
+    unsafe {
         libc::getsockopt(
             stream.as_raw_fd(),
             libc::SOL_SOCKET,
@@ -32,8 +29,15 @@ pub(super) fn serve_connection(
             &mut size,
         ) == 0
             && credentials.uid == libc::geteuid()
-    };
-    if !trusted {
+    }
+}
+
+pub(super) fn serve_connection(
+    mut stream: UnixStream,
+    sender: SyncSender<Request>,
+    settings: Value,
+) {
+    if !trusted_peer(&stream) {
         return;
     }
     let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));

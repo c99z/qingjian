@@ -107,8 +107,8 @@ fn load_learner(dir: &Path) -> FrequencyLearner {
     }
 }
 
-/// 随包释义表叠上个人释义表（`user-glossary-<语言>.tsv`）。
-fn load_glossary(
+/// 随包释义表叠上个人释义表（`user-glossary-<语言>.tsv`）；启动装配与热重载换学习语言共用。
+pub(crate) fn load_glossary(
     language: Language,
     path: &Path,
     user_dir: Option<&Path>,

@@ -1,16 +1,20 @@
-//! Linux 会话路由：独立保存各上下文的组句，词库和学习服务保持单实例。本地整句模型在 [`rescore`]。
+//! Linux 会话路由：独立保存各上下文的组句，词库和学习服务保持单实例。本地整句模型在 [`rescore`]，配置热重载在 [`reload`]。
 
+mod admin;
 mod composed;
 mod config;
 mod display;
 mod key;
 mod linux;
 mod message;
+mod reload;
 mod rescore;
 mod session;
 
 use self::composed::Composed;
 pub use self::config::RouterConfig;
+use self::reload::ConfigReload;
+pub use self::reload::ReloadDirs;
 pub use self::rescore::find_model;
 use self::rescore::{ModelLoader, RescoreState};
 use self::session::SessionInfo;
@@ -64,8 +68,17 @@ pub struct Router {
     /// 进行中的模型加载；加载完接到 Engine 上就清掉。
     model_loader: Option<ModelLoader>,
 
+    /// 发起当前模型加载的配置代次；旧代次的结果不覆盖新设置。
+    model_generation: u64,
+
+    /// 模型加载失败 / 缺失的原因，`Status` 报给设置程序。
+    model_error: Option<String>,
+
     /// 重排的防抖 / 轮询进行态。
     rescore: RescoreState,
+
+    /// 配置热重载状态；没开（测试）为 `None`。
+    reload: Option<ConfigReload>,
 }
 
 impl Router {
@@ -86,7 +99,10 @@ impl Router {
             last_flush: Instant::now(),
             model_path: None,
             model_loader: None,
+            model_generation: 0,
+            model_error: None,
             rescore: RescoreState::default(),
+            reload: None,
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。
@@ -101,10 +117,12 @@ impl Router {
         self.engine.flush_learning();
         self.last_flush = Instant::now();
     }
-    /// 到点了：接上加载好的模型、推进重排、到点落盘学习（输入停止后也不能一直不落盘）。主循环超时与插件的 `Poll` 都会调。
+    /// 到点了：接上加载好的模型、推进重排、看配置有没有改、组句结束后补上挂起的配置、到点落盘学习（输入停止后也不能一直不落盘）。主循环超时与插件的 `Poll` 都会调。
     pub fn tick(&mut self) {
         self.attach_loaded_model();
         self.advance_rescoring();
+        self.poll_config_reload();
+        self.maybe_apply_pending();
         if self.last_flush.elapsed() >= LEARNING_FLUSH_INTERVAL {
             self.flush_learning();
         }

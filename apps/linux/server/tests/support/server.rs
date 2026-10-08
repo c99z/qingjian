@@ -23,6 +23,7 @@ impl Server {
         .unwrap();
         let child = Command::new(env!("CARGO_BIN_EXE_qingjian-linux-server"))
             .env("QINGJIAN_SOCKET", directory.join("server.sock"))
+            .env("QINGJIAN_ADMIN_SOCKET", directory.join("admin.sock"))
             .env("QINGJIAN_RESOURCES", &root)
             .env("QINGJIAN_DICT", root.join("assets/sample/dict.tsv"))
             .env("XDG_CONFIG_HOME", directory.join("config"))
@@ -34,13 +35,20 @@ impl Server {
         Self { child, directory }
     }
     pub fn connect(&mut self) -> UnixStream {
+        self.connect_to("server.sock")
+    }
+    #[allow(dead_code)] // 只有管理 socket 的测试用
+    pub fn connect_admin(&mut self) -> UnixStream {
+        self.connect_to("admin.sock")
+    }
+    fn connect_to(&mut self, name: &str) -> UnixStream {
         let started = Instant::now();
         loop {
             assert!(
                 self.child.try_wait().unwrap().is_none(),
                 "server exited early"
             );
-            if let Ok(stream) = UnixStream::connect(self.directory.join("server.sock")) {
+            if let Ok(stream) = UnixStream::connect(self.directory.join(name)) {
                 stream
                     .set_read_timeout(Some(Duration::from_secs(2)))
                     .unwrap();
@@ -49,6 +57,11 @@ impl Server {
             assert!(started.elapsed() < Duration::from_secs(5));
             std::thread::sleep(Duration::from_millis(10));
         }
+    }
+    /// 配置文件路径（`$XDG_CONFIG_HOME/qingjian/config.toml`）。
+    #[allow(dead_code)] // 只有热重载的测试用
+    pub fn config_path(&self) -> PathBuf {
+        self.directory.join("config/qingjian/config.toml")
     }
 }
 impl Drop for Server {

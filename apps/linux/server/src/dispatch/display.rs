@@ -12,7 +12,14 @@ impl Router {
         json!({"version": LINUX_UI_PROTOCOL, "preedit": self.config.preedit})
     }
 
+    /// 一条按键 / 展示消息；处理完后组句若已结束，补上等待中的配置应用。
     pub fn handle_linux(&mut self, value: Value) -> Option<Value> {
+        let response = self.handle_linux_inner(value);
+        self.maybe_apply_pending();
+        response
+    }
+
+    fn handle_linux_inner(&mut self, value: Value) -> Option<Value> {
         if let Some(body) = value.get("DisplayReporting") {
             let session: SessionId = serde_json::from_value(body.get("session")?.clone()).ok()?;
             let identity: DisplayIdentity =
