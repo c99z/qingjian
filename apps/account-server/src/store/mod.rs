@@ -6,6 +6,7 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 mod auth;
+mod backup;
 
 #[derive(Clone)]
 pub struct AccountStore {
@@ -18,22 +19,24 @@ impl AccountStore {
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             #[cfg(unix)]
             let newly_created = !parent.exists();
-            std::fs::create_dir_all(parent).map_err(|_| ApiError::Internal)?;
+            std::fs::create_dir_all(parent).map_err(|e| io_failed(parent, e))?;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
                 if newly_created {
                     std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
-                        .map_err(|_| ApiError::Internal)?;
+                        .map_err(|e| io_failed(parent, e))?;
                 }
             }
         }
-        let db = Connection::open(path)?;
+        let db = Connection::open(path).inspect_err(|error| {
+            tracing::error!(path = %path.display(), %error, "无法打开账号数据库");
+        })?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-                .map_err(|_| ApiError::Internal)?;
+                .map_err(|e| io_failed(path, e))?;
         }
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
           CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL, failures INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0);
@@ -135,6 +138,11 @@ impl AccountStore {
             server_url: String::new(),
         })
     }
+}
+/// 启动阶段的文件错误只有运维看得到，记下路径与系统错误再收成 `Internal`。
+fn io_failed(path: &Path, error: std::io::Error) -> ApiError {
+    tracing::error!(path = %path.display(), %error, "账号数据目录不可用，检查卷的属主与权限");
+    ApiError::Internal
 }
 fn token_hash(token: &str) -> String {
     Sha256::digest(token.as_bytes())

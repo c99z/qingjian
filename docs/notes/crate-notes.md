@@ -377,4 +377,4 @@ P5 已接统计页与服务协调的日志清空：`adapters/statistics` 优先�
 ## apps/account-server
 
 独立产品 `qingjian-account-server` 无 GTK、Fcitx5 或 Engine 装配，Axum 提供 `/health`、`/v1/register`、`/v1/login`、`/v1/logout` 和 GET/PUT `/v1/snapshot`。SQLite WAL 存账号、会话与每账号一个最新快照；Argon2id 密码哈希、SHA256 会话 token 哈希、30 天有效期、5 次错误登录锁定 1 分钟。上传以事务比较 `expected_revision`，过期版本返回 409；默认注册关闭，仅 `QINGJIAN_REGISTRATION=open` 打开。
-默认监听 `127.0.0.1:9080`，`QINGJIAN_ACCOUNT_DB` 指定私有数据库。HTTP 正文限制 96 MiB + 1024 字节，并发昂贵操作最多 8 个。服务端验证归档与凭据排除，客户端恢复前进一步验证词库。操作是手动整份快照替换，不做自动合并；部署与尚未提供功能见 [账号服务](account-service.md)。
+默认监听 `127.0.0.1:9080`，`QINGJIAN_ACCOUNT_DB` 指定私有数据库，`RUST_LOG` 调日志级别；子命令 `healthcheck`（容器健康检查）与 `backup <目标>`（`VACUUM INTO` 运行中备份）。HTTP 正文限制 96 MiB + 1024 字节，并发请求最多 8 个，超出 503，`/health` 不计入。Argon2 校验在库锁外做，不存在的用户名也校验一次随机哈希。Docker 部署文件在 `docker/`（Dockerfile、compose + Caddy、`package.sh` 离线包）。服务端验证归档与凭据排除，客户端恢复前进一步验证词库。操作是手动整份快照替换，不做自动合并；部署与尚未提供功能见 [账号服务](account-service.md)。

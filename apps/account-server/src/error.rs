@@ -23,11 +23,15 @@ pub enum ApiError {
     #[error("registration disabled")]
     RegistrationDisabled,
 
+    #[error("server busy")]
+    Busy,
+
     #[error("storage error")]
     Internal,
 }
 impl From<rusqlite::Error> for ApiError {
-    fn from(_: rusqlite::Error) -> Self {
+    fn from(error: rusqlite::Error) -> Self {
+        tracing::error!(%error, "数据库操作失败");
         Self::Internal
     }
 }
@@ -46,6 +50,10 @@ impl IntoResponse for ApiError {
                 "尝试次数过多，请稍后重试".into(),
             ),
             Self::RegistrationDisabled => (StatusCode::FORBIDDEN, "服务已关闭注册".into()),
+            Self::Busy => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "账号服务繁忙，请稍后重试".into(),
+            ),
             Self::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "账号服务存储失败".into()),
         };
         (status, axum::Json(serde_json::json!({"message": message}))).into_response()

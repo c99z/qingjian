@@ -1,0 +1,25 @@
+# 青简账号服务的 HTTPS 入口。地址与证书方式都来自 .env：
+#   QINGJIAN_SITE         主地址：服务器 IP 或域名，只写一个
+#   QINGJIAN_EXTRA_SITES  附加地址（可空），空格分隔；客户端用 IP 直连时只能对上主地址的证书
+#   QINGJIAN_TLS          internal = Caddy 自建 CA（IP / 内网）；填邮箱 = 向 Let's Encrypt 申请（域名）
+{
+	# 用 IP 直连的客户端不发 SNI，Caddy 会退回用连接的本地地址选证书，
+	# 在 Docker 端口映射后面那是容器网段地址，选不到证书就握手失败；固定用主地址的证书。
+	default_sni {$QINGJIAN_SITE}
+
+	# 自建 CA 的根证书由管理员分发到客户端，不装进容器自己的信任库
+	skip_install_trust
+}
+
+{$QINGJIAN_SITE} {$QINGJIAN_EXTRA_SITES} {
+	tls {$QINGJIAN_TLS}
+
+	# 服务端上限是 96 MiB + 1 KiB，这里只挡明显超大的正文
+	request_body {
+		max_size 100MiB
+	}
+
+	reverse_proxy account:9080
+
+	log
+}

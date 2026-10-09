@@ -1,0 +1,10 @@
+# 构建上下文是仓库根；只留编译账号服务所需的 workspace 源码。
+# .env 必须排除，否则 AI 密钥会进构建层。
+.git
+**/target
+**/.env
+data
+assets
+docs
+logs
+**/node_modules

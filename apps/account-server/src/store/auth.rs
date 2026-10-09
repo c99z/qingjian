@@ -1,4 +1,5 @@
 //! Argon2id 口令验证和账号锁定；数据库只保存口令哈希和令牌哈希。
+//! 口令哈希与校验在数据库锁外做，否则一次登录要把所有请求挡住几十毫秒。
 use crate::{
     error::ApiError,
     store::{AccountStore, now},
@@ -9,6 +10,22 @@ use argon2::{
 };
 use qingjian_platform::account::{AccountSession, LoginRequest};
 use rusqlite::{OptionalExtension, params};
+use std::sync::LazyLock;
+
+/// 连续错误这么多次后锁定账号。
+const MAX_FAILURES: u32 = 5;
+
+/// 锁定时长（秒）。
+const LOCK_SECONDS: i64 = 60;
+
+/// 用户名不存在时也校验一次，响应时间不暴露账号是否存在。
+static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {
+    Argon2::default()
+        .hash_password(uuid::Uuid::new_v4().as_bytes())
+        .map(|hash| hash.to_string())
+        .unwrap_or_default()
+});
+
 fn username(value: &str) -> Result<String, ApiError> {
     let value = value.trim().to_ascii_lowercase();
     if !(3..=64).contains(&value.len())
@@ -21,6 +38,12 @@ fn username(value: &str) -> Result<String, ApiError> {
         ));
     }
     Ok(value)
+}
+fn verify(password: &str, encoded: &str) -> Result<bool, ApiError> {
+    let hash = PasswordHash::new(encoded).map_err(|_| ApiError::Internal)?;
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &hash)
+        .is_ok())
 }
 impl AccountStore {
     pub fn register(&self, request: LoginRequest) -> Result<AccountSession, ApiError> {
@@ -36,18 +59,13 @@ impl AccountStore {
             .map_err(|_| ApiError::Internal)?
             .to_string();
         let db = self.db.lock().map_err(|_| ApiError::Internal)?;
-        let exists: bool = db.query_row(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE username=?1)",
-            [&username],
-            |r| r.get(0),
-        )?;
-        if exists {
-            return Err(ApiError::Conflict);
-        }
-        db.execute(
-            "INSERT INTO users(username,password) VALUES (?1,?2)",
+        let inserted = db.execute(
+            "INSERT INTO users(username,password) VALUES (?1,?2) ON CONFLICT(username) DO NOTHING",
             params![username, password],
         )?;
+        if inserted == 0 {
+            return Err(ApiError::Conflict);
+        }
         Self::issue(&db, db.last_insert_rowid(), username)
     }
     pub fn login(&self, request: LoginRequest) -> Result<AccountSession, ApiError> {
@@ -55,33 +73,33 @@ impl AccountStore {
         if request.password.len() > 256 {
             return Err(ApiError::Unauthorized);
         }
-        let db = self.db.lock().map_err(|_| ApiError::Internal)?;
-        let found: Option<(i64, String, u32, i64)> = db
-            .query_row(
-                "SELECT id,password,failures,locked_until FROM users WHERE username=?1",
+        let found: Option<(i64, String, i64)> = {
+            let db = self.db.lock().map_err(|_| ApiError::Internal)?;
+            db.query_row(
+                "SELECT id,password,locked_until FROM users WHERE username=?1",
                 [&username],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
-            .optional()?;
-        let Some((user, encoded, failures, locked)) = found else {
+            .optional()?
+        };
+        let Some((user, encoded, locked)) = found else {
+            let _ = verify(&request.password, &DUMMY_HASH);
             return Err(ApiError::Unauthorized);
         };
         if locked > now() {
             return Err(ApiError::RateLimited);
         }
-        let hash = PasswordHash::new(&encoded).map_err(|_| ApiError::Internal)?;
-        if Argon2::default()
-            .verify_password(request.password.as_bytes(), &hash)
-            .is_err()
-        {
-            let failures = if locked != 0 {
-                1
-            } else {
-                failures.saturating_add(1)
-            };
+        let valid = verify(&request.password, &encoded)?;
+        let db = self.db.lock().map_err(|_| ApiError::Internal)?;
+        if !valid {
+            // 锁定过期后重新计数；计数在锁内读改写，并发的错误登录不会少记。
             db.execute(
-                "UPDATE users SET failures=?1,locked_until=?2 WHERE id=?3",
-                params![failures, if failures >= 5 { now() + 60 } else { 0 }, user],
+                "UPDATE users SET
+                   failures = CASE WHEN locked_until != 0 THEN 1 ELSE failures + 1 END,
+                   locked_until = CASE WHEN (CASE WHEN locked_until != 0 THEN 1 ELSE failures + 1 END) >= ?1
+                                       THEN ?2 ELSE 0 END
+                 WHERE id = ?3",
+                params![MAX_FAILURES, now() + LOCK_SECONDS, user],
             )?;
             return Err(ApiError::Unauthorized);
         }

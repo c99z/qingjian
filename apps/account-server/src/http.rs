@@ -10,9 +10,11 @@ use axum::{
 };
 use qingjian_platform::account::{AccountSession, LoginRequest, RemoteSnapshot, UploadRequest};
 
+/// 同时处理的请求上限；口令哈希与快照编解码都吃 CPU 和内存，超出的直接回 503。
+const MAX_CONCURRENT: usize = 8;
+
 pub fn router(store: AccountStore) -> Router {
     Router::new()
-        .route("/health", get(|| async { "ok" }))
         .route("/v1/register", post(register))
         .route("/v1/login", post(login))
         .route("/v1/logout", post(logout))
@@ -21,6 +23,8 @@ pub fn router(store: AccountStore) -> Router {
             qingjian_platform::backup::MAX_ARCHIVE_BYTES + 1024,
         ))
         .layer(middleware::from_fn(limit_concurrency))
+        // 健康检查在并发限制之外：服务忙时容器编排不该把它判成故障重启。
+        .route("/health", get(|| async { "ok" }))
         .with_state(store)
 }
 async fn limit_concurrency(
@@ -28,8 +32,8 @@ async fn limit_concurrency(
     next: Next,
 ) -> Result<Response, ApiError> {
     static LIMIT: std::sync::LazyLock<tokio::sync::Semaphore> =
-        std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(8));
-    let _permit = LIMIT.try_acquire().map_err(|_| ApiError::RateLimited)?;
+        std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(MAX_CONCURRENT));
+    let _permit = LIMIT.try_acquire().map_err(|_| ApiError::Busy)?;
     Ok(next.run(request).await)
 }
 fn token(headers: &HeaderMap) -> Result<String, ApiError> {
