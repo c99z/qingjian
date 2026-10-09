@@ -56,7 +56,7 @@ impl AccountClient {
             ))
             .json(&LoginRequest { username, password })
             .send()
-            .map_err(|_| "无法连接账号服务，请检查地址和网络".to_owned())?;
+            .map_err(|e| send_failed(&e, "无法连接账号服务，请检查地址和网络"))?;
         let mut session: AccountSession = decode(response)?;
         session.server_url = self.base.clone();
         Ok(session)
@@ -67,7 +67,7 @@ impl AccountClient {
             .post(format!("{}/v1/logout", self.base))
             .bearer_auth(&session.token)
             .send()
-            .map_err(|_| "账号服务连接失败，未注销".to_owned())?;
+            .map_err(|e| send_failed(&e, "账号服务连接失败，未注销"))?;
         if response.status() == StatusCode::UNAUTHORIZED {
             return Ok(());
         }
@@ -84,7 +84,7 @@ impl AccountClient {
                 archive,
             })
             .send()
-            .map_err(|_| "上传失败，云端结果未知；请重新登录核对版本".to_owned())?;
+            .map_err(|e| send_failed(&e, "上传失败，云端结果未知；请重新登录核对版本"))?;
         let value: serde_json::Value = decode(response)?;
         value
             .get("revision")
@@ -97,11 +97,23 @@ impl AccountClient {
             .get(format!("{}/v1/snapshot", self.base))
             .bearer_auth(&session.token)
             .send()
-            .map_err(|_| "下载失败，请检查账号服务和网络".to_owned())?;
+            .map_err(|e| send_failed(&e, "下载失败，请检查账号服务和网络"))?;
         let snapshot: RemoteSnapshot = decode(response)?;
         snapshot.archive.validate()?;
         Ok(snapshot)
     }
+}
+/// 证书校验失败单独提示：自建 CA 的根证书没装进系统信任库是 IP 部署最常见的连不上原因，
+/// 笼统的「检查网络」会把人引到错的方向。TLS 握手在发请求之前，此时请求一定没有到达服务。
+fn send_failed(error: &reqwest::Error, fallback: &str) -> String {
+    let mut source: Option<&dyn std::error::Error> = Some(error);
+    while let Some(current) = source {
+        if current.to_string().contains("certificate verify failed") {
+            return "账号服务的证书不受本机信任；若服务使用自建证书，需先把管理员提供的根证书加入系统受信任证书".into();
+        }
+        source = current.source();
+    }
+    fallback.into()
 }
 fn checked(response: Response) -> Result<Response, String> {
     if response.status().is_success() {
@@ -113,6 +125,7 @@ fn checked(response: Response) -> Result<Response, String> {
         StatusCode::NOT_FOUND => "账号尚无云端备份",
         StatusCode::FORBIDDEN => "账号服务未开放注册",
         StatusCode::TOO_MANY_REQUESTS => "尝试次数过多，请稍后重试",
+        StatusCode::SERVICE_UNAVAILABLE => "账号服务繁忙，请稍后重试",
         StatusCode::BAD_REQUEST => {
             "内容不合法：用户名需为 3–64 个字母、数字或 _ - . @，密码至少 12 字节；请检查备份格式"
         }
