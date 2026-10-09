@@ -61,7 +61,7 @@ apps/linux/scripts/install.sh
 
 ## 设置窗口
 
-新版完整安装后，可以从应用菜单打开「青简设置」，或运行：
+新版完整安装后，可以从应用菜单打开「青简设置」，也可以在 Fcitx5 托盘图标的菜单里点「青简设置」，或在 Fcitx5 配置工具的输入法列表里选中「青简」后点「配置」。还可以运行：
 
 ```sh
 ~/.local/bin/qingjian-linux-settings

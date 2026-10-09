@@ -7,7 +7,9 @@
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextmanager.h>
 #include <fcitx/inputpanel.h>
+#include <fcitx/statusarea.h>
 #include <fcitx/userinterfacemanager.h>
+#include <fcitx-utils/misc.h>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
@@ -41,6 +43,10 @@ QingjianEngine::QingjianEngine(AddonManager *manager)
     });
     shared_->deferred->setEnabled(false);
     instance_->inputContextManager().registerProperty("qingjian-session", &sessions_);
+    settingsAction_.setShortText("青简设置");
+    settingsAction_.setIcon("qingjian");
+    instance_->userInterfaceManager().registerAction("qingjian-settings", &settingsAction_);
+    settingsAction_.connect<SimpleAction::Activated>([](InputContext *) { startProcess({"qingjian-linux-settings"}); });
     capabilityWatcher_ = instance_->watchEvent(EventType::InputContextCapabilityChanged, EventWatcherPhase::PreInputMethod, [this](Event &event) {
         auto *context = static_cast<InputContextEvent &>(event).inputContext();
         ++context->propertyFor(&sessions_)->lifecycle;
@@ -69,6 +75,7 @@ QingjianEngine::QingjianEngine(AddonManager *manager)
 QingjianEngine::~QingjianEngine() {
     *alive_ = false;
     poller_.reset(); polled_.unwatch();
+    instance_->userInterfaceManager().unregisterAction(&settingsAction_);
     capabilityWatcher_.reset(); focusWatcher_.reset(); keyboardWatcher_.reset();
     shared_->watcher.reset(); shared_->deferred.reset(); shared_->connection.close();
     const auto contexts = shared_->contexts;
@@ -81,6 +88,9 @@ QingjianEngine::~QingjianEngine() {
         }
     }
     sessions_.unregister();
+}
+void QingjianEngine::activate(const InputMethodEntry &, InputContextEvent &event) {
+    event.inputContext()->statusArea().addAction(StatusGroup::InputMethod, &settingsAction_);
 }
 void QingjianEngine::clear(InputContext *context) {
     if (polled_.get() == context) stopPolling();
