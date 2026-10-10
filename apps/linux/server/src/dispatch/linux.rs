@@ -28,7 +28,7 @@ impl Router {
             LinuxEvent::Focus { focused } => {
                 let info = self.sessions.get_mut(&session)?;
                 info.active = focused;
-                info.shift_pending = false;
+                info.switch_pending = None;
                 info.display_frame = None;
                 info.last_frame = None;
                 if !focused && self.focused == Some(session) {
@@ -57,7 +57,7 @@ impl Router {
                 }
                 let info = self.sessions.get_mut(&session)?;
                 info.active = false;
-                info.shift_pending = false;
+                info.switch_pending = None;
                 info.display_frame = None;
                 info.last_frame = None;
                 self.flush_learning();
@@ -75,21 +75,16 @@ impl Router {
                 }
                 self.ensure_focus(session);
                 self.notice = None;
-                let info = self.sessions.get_mut(&session)?;
-                let shift = event.virtual_key == 0x10;
-                if release {
-                    if shift && info.shift_pending {
-                        info.shift_pending = false;
-                        info.english = !info.english;
-                        commit =
-                            (!self.engine.composition().is_empty()).then(|| self.engine.take_raw());
-                        self.reset_composition();
-                        outcome = KeyOutcome::Consumed;
-                    }
-                } else {
-                    info.shift_pending = shift && !event.modifiers.has_command_key();
-                    event.modifiers.english_mode = info.english;
-                    let effect = if shift {
+                if self.mode_switch_key(session, &event, release) {
+                    let info = self.sessions.get_mut(&session)?;
+                    info.english = !info.english;
+                    commit =
+                        (!self.engine.composition().is_empty()).then(|| self.engine.take_raw());
+                    self.reset_composition();
+                    outcome = KeyOutcome::Consumed;
+                } else if !release {
+                    event.modifiers.english_mode = self.sessions[&session].english;
+                    let effect = if matches!(event.virtual_key, 0x10 | 0x11) {
                         Effect::Passthrough
                     } else {
                         self.apply_key(&event)
@@ -147,7 +142,7 @@ impl Router {
 
     fn discard_session(&mut self, session: SessionId) {
         let info = self.sessions.get_mut(&session).expect("known session");
-        info.shift_pending = false;
+        info.switch_pending = None;
         info.display_frame = None;
         info.last_frame = None;
         info.composed = None;

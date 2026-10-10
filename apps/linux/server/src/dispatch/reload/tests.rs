@@ -61,6 +61,47 @@ fn reload(router: &mut Router) -> ComponentStatus {
 }
 
 #[test]
+fn switching_shortcuts_reload_and_cancel_pending_taps() {
+    use qingjian_platform::{SwitchKey, SwitchKeys};
+
+    let root = workspace("switching");
+    let path = root.join("config.toml");
+    std::fs::write(&path, "[shortcut]\nswitch_mode = [\"shift\"]\n").unwrap();
+    let mut router = router(&path, &root);
+    open(&mut router, 1);
+    assert!(!router.mode_switch_key(
+        SessionId(1),
+        &KeyEvent::new(16, None, KeyModifiers::default()),
+        false,
+    ));
+    std::fs::write(&path, "[shortcut]\nswitch_mode = [\"ctrl+alt+space\"]\n").unwrap();
+    assert_eq!(reload(&mut router), ComponentStatus::Applied);
+    assert_eq!(
+        router.config.switch_mode,
+        SwitchKeys::NONE.with(SwitchKey::CtrlAltSpace, true)
+    );
+    assert!(!router.mode_switch_key(
+        SessionId(1),
+        &KeyEvent::new(16, None, KeyModifiers::default()),
+        true,
+    ));
+    assert!(router.mode_switch_key(
+        SessionId(1),
+        &KeyEvent::new(
+            32,
+            Some(' '),
+            KeyModifiers {
+                ctrl: true,
+                alt: true,
+                ..Default::default()
+            }
+        ),
+        false,
+    ));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn idle_reload_applies_immediately_and_bumps_generation() {
     let root = workspace("idle");
     let path = root.join("config.toml");

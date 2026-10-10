@@ -1,6 +1,7 @@
 //! 单个 Fcitx 输入上下文保存的输入状态。
 use crate::dispatch::composed::Composed;
 use qingjian_core::EngineSession;
+use qingjian_platform::SwitchKey;
 
 pub(crate) struct SessionInfo {
     /// 应用标识。
@@ -15,10 +16,10 @@ pub(crate) struct SessionInfo {
     /// 上次发给插件的帧；插件定时 Poll 时内容没变就沿用展示身份，不算新的展示。
     pub(crate) last_frame: Option<qingjian_platform::protocol::Frame>,
 
-    /// Server 持有的中英模式与单击 Shift 状态。
+    /// Server 持有的中英模式与待确认的单击切换键。
     pub(crate) english: bool,
 
-    pub(crate) shift_pending: bool,
+    pub(crate) switch_pending: Option<SwitchKey>,
 
     /// 最近的框架能力，首次报告前为未知。
     pub(crate) capabilities: Option<crate::protocol::Capabilities>,
@@ -48,7 +49,7 @@ impl SessionInfo {
         Self {
             app,
             english: false,
-            shift_pending: false,
+            switch_pending: None,
             capabilities: None,
             disabled: false,
             active: true,

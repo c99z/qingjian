@@ -1,6 +1,6 @@
 //! Linux 首版按键与候选配置。
 use qingjian_platform::protocol::KeyModifiers;
-use qingjian_platform::{AppsConfig, Config, LayoutMode, PreeditMode, ThemeMode};
+use qingjian_platform::{AppsConfig, Config, LayoutMode, PreeditMode, SwitchKeys, ThemeMode};
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +25,9 @@ pub struct RouterConfig {
 
     /// 英文模式给不给英文候选（`[general] english_candidates`）。
     pub english_candidates: bool,
+
+    /// 青简内部中英切换键（`[shortcut] switch_mode`）。
+    pub switch_mode: SwitchKeys,
 
     /// Shift 大写字母是否加入中文组句。
     pub shift_letter_compose: bool,
@@ -65,6 +68,7 @@ impl From<&Config> for RouterConfig {
             theme: config.general.theme,
             page_keys: config.general.page_keys(),
             english_candidates: config.general.english_candidates,
+            switch_mode: config.shortcut.switch_mode,
             shift_letter_compose: config.general.shift_letter.compose(),
             full_width: config.general.full_width_punctuation,
             english_full_width: config.general.english_full_width_punctuation,

@@ -345,7 +345,8 @@ DLL 不读文件、不查 mtime。`SessionOpened` 只回过协议版本对得上
 
 `qingjian-linux-server` 为独立产品 `0.1.0-dev`，装配本地 Engine、词库、释义、频率学习、个人 n-gram、词汇记录与可选输入日志，
 本地整句模型优先加载用户 `~/.local/share/qingjian/models/hanzhang-tongbian/` 或随包 `data/models/hanzhang-tongbian/`，缺失时回退 `models/hanzhang-zhiwei/`；旧用户目录兼容读取。按 `[model] enabled` 在后台加载、停键 80 ms 后重排，Server 每 20 ms 收模型结果，Fcitx5 插件组句期间每 20 ms 取最新候选；云候选、整句补全与释义补全使用 `qingjian-predict` 的后台线程，本地按键只收发内存通道。Linux 不读取应用上下文或历史输入；失焦、隐私变化、清空与关闭云服务时取消旧结果，关闭开关立即生效。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
-默认面板插件仅转换事件，Shift 模式、候选点击、分页和失焦提交都由 Server 决定。
+默认面板插件仅转换事件，内部中英模式、候选点击、分页和失焦提交都由 Server 决定。
+`dispatch/key/switching` 读取 `[shortcut] switch_mode`（单击 Shift / Ctrl、Ctrl + Alt + Space），配置重载取消待确认单击；Fcitx5 自身切换不改动。
 `[shortcut] translation_space` 缺省 `shift`，中文组句按修饰键 + 空格调用 Core 上屏高亮候选的第一条译词；缺释义保留组句，普通空格选原词。
 
 Unix socket 用共享长度前缀与 Frame（当前公共版本 7，与 `PROTOCOL_VERSION` 同步，Fcitx5 插件里写死在 `qingjian.cpp` 的 OpenSession）；插件复用一条连接，每个上下文独立会话。Linux v3 扩展逐会话握手、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。

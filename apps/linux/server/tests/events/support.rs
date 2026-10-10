@@ -1,19 +1,26 @@
 //! Linux 事件测试构造器。
 use qingjian_core::Engine;
-use qingjian_dictionary::Dictionary;
+use qingjian_dictionary::{Dictionary, WordList};
 use qingjian_linux_server::{Router, RouterConfig};
+use qingjian_platform::SwitchKeys;
 use qingjian_platform::protocol::{
     ClientMessage, KeyEvent, KeyModifiers, PROTOCOL_VERSION, SessionId,
 };
 use serde_json::{Value, json};
 
 pub fn router() -> Router {
+    router_with_switch(SwitchKeys::default())
+}
+
+pub fn router_with_switch(switch_mode: SwitchKeys) -> Router {
     let mut router = Router::new(
         Engine::new(
             Dictionary::parse("你好\tni hao\t100\n你\tni\t80\n泥\tni\t70\n拟\tni\t60\n").unwrap(),
-        ),
+        )
+        .with_english(WordList::parse("hello\thello\t100\n").unwrap()),
         RouterConfig {
             page_size: 1,
+            switch_mode,
             ..Default::default()
         },
     );

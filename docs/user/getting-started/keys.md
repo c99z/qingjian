@@ -121,7 +121,11 @@ macOS 上应避开 `⌃ + 数字`（系统切换桌面）与 `⌘ + 数字`（�
 
 ## Linux（Fcitx5）
 
-单击 `Shift` 切换中英；按住 `Shift` 输入字母不会切换。`Space`、`1` 至 `9` 以及候选点击选词，
+青简内部中英切换键由「青简设置 → 快捷键」或 `[shortcut] switch_mode` 配置，支持单击 `Shift`（缺省）、
+单击 `Ctrl`、`Ctrl + Alt + Space`，可多选；`[]` 关闭内部切换键。若 Fcitx5 用单击 `Shift` 切换输入法，
+建议青简配置 `switch_mode = ["ctrl+alt+space"]`：`Shift` 切换 Fcitx5 的键盘直输，`Ctrl + Alt + Space` 切换青简内部的中文 / 英文候选模式。
+按住切换修饰键输入其他按键不会触发单击切换；切换青简模式时，未选中的组句原样上屏。
+切换键修改随配置热重载生效。`Space`、`1` 至 `9` 以及候选点击选词，
 全拼 / 双拼下 `Enter` 原样输出，`Backspace` / `Delete` 编辑，`Esc` 取消，方向键移动高亮或光标。
 `[` / `]` 和 `PageUp` / `PageDown` 翻页；翻页键可在配置文件修改。
 

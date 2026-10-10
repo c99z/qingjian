@@ -192,6 +192,9 @@ impl Router {
         router_config.page_size = router_config.page_size.clamp(1, 9);
         router_config.cloud_slots = 0;
         self.config = router_config;
+        for session in self.sessions.values_mut() {
+            session.switch_pending = None;
+        }
         self.configure_cloud(&config.predict);
         if self.engine.prediction_enabled() {
             self.config.cloud_slots = config.predict.slots;

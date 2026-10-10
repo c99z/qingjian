@@ -63,6 +63,29 @@ fn native_window_edits_reverts_saves_and_renders() {
             .unwrap()
             .contains("# 保留注释")
     );
+    let switch_check = |title: &str| {
+        let row = widgets
+            .iter()
+            .filter_map(|w| w.clone().downcast::<adw::ActionRow>().ok())
+            .find(|row| row.title() == title)
+            .unwrap();
+        descendants(&row.upcast())
+            .into_iter()
+            .find_map(|w| w.downcast::<gtk::CheckButton>().ok())
+            .unwrap()
+    };
+    switch_check("单击 Shift").set_active(false);
+    switch_check("Ctrl + Alt + Space").set_active(true);
+    window.activate_action("win.apply", None).unwrap();
+    wait_for(|| {
+        stack.is_sensitive()
+            && qingjian_platform::Config::load(&path)
+                .unwrap()
+                .shortcut
+                .switch_mode
+                .config_values()
+                == ["ctrl+alt+space"]
+    });
     let sidebar = widgets
         .iter()
         .filter_map(|w| w.clone().downcast::<gtk::ListBox>().ok())

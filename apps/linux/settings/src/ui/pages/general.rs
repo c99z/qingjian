@@ -84,7 +84,7 @@ impl GeneralPage {
         let ctx_english = ctx.clone();
         let english_candidates = switch_row(
             "英文候选",
-            "英文模式（Caps Lock 亮着）下给英文补全与拼错纠正；关掉就是纯直通",
+            "青简英文模式下给英文补全与拼错纠正；Fcitx5 的键盘模式直接输入字母",
             move |on| ctx_english.set("general", "english_candidates", on),
             &syncing,
         );

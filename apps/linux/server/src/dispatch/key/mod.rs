@@ -5,6 +5,7 @@ mod codes;
 mod effect;
 mod input;
 mod shortcut;
+mod switching;
 
 pub(super) use self::effect::Effect;
 

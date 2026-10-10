@@ -156,8 +156,9 @@ english_candidates_off = [
 #[cfg(not(windows))]
 macro_rules! template_shortcut_keys {
     () => {
-        r#"# 中 / 英模式切换键（Windows 用），可多选：shift 单击（缺省）/ control 单击 / ctrl+alt+space 组合键；[] 不用键切换。
+        r#"# 中 / 英模式切换键（Windows / Linux 用），可多选：shift 单击（缺省）/ control 单击 / ctrl+alt+space 组合键；[] 不用键切换。
 # macOS 的切换键是 Caps Lock（系统级），本项不生效
+# Linux 若 Fcitx5 用 Shift 切换输入法，可改为 ["ctrl+alt+space"]，避免两层切换重叠
 switch_mode = ["shift"]
 # 数字键配这些修饰键上屏候选的译词：translation 第一个译词，translation_second 第二个（候选右侧有两个译词时）
 # 任意修饰键组合（option / shift / control / command 用 + 连），偏好设置里点按钮录制；别用 control+数字（系统切桌面）和 command+数字（应用切标签页）

@@ -56,7 +56,7 @@ impl ShortcutsPage {
         let switching = adw::PreferencesGroup::new();
         switching.set_title("中英切换");
         switching.set_description(Some(
-            "Linux 的中英切换由 Fcitx5 负责；这里的切换键只在 Windows 上生效",
+            "切换青简内部的中英模式；若 Fcitx5 用 Shift 切换输入法，可只勾选 Ctrl + Alt + Space",
         ));
         let mut switch_checks: Vec<gtk::CheckButton> = Vec::new();
         for key in SwitchKey::ALL {
@@ -66,19 +66,6 @@ impl ShortcutsPage {
             check.set_valign(gtk::Align::Center);
             row.add_suffix(&check);
             row.set_activatable_widget(Some(&check));
-            let checks_signal = switch_checks.clone();
-            let ctx = ctx.clone();
-            let syncing = syncing.clone();
-            check.connect_toggled(move |_| {
-                if syncing.get() {
-                    return;
-                }
-                let mut keys = SwitchKeys::NONE;
-                for (key, check) in SwitchKey::ALL.iter().zip(&checks_signal) {
-                    keys = keys.with(*key, check.is_active());
-                }
-                ctx.set_array("shortcut", "switch_mode", &keys.config_values());
-            });
             switch_checks.push(check);
             switching.add(&row);
         }
@@ -215,6 +202,23 @@ impl ShortcutsPage {
             question_mark,
             fields,
         });
+        for check in &this.switch_checks {
+            let weak = Rc::downgrade(&this);
+            check.connect_toggled(move |_| {
+                let Some(this) = weak.upgrade() else {
+                    return;
+                };
+                if this.syncing.get() {
+                    return;
+                }
+                let mut keys = SwitchKeys::NONE;
+                for (key, check) in SwitchKey::ALL.iter().zip(&this.switch_checks) {
+                    keys = keys.with(*key, check.is_active());
+                }
+                this.ctx
+                    .set_array("shortcut", "switch_mode", &keys.config_values());
+            });
+        }
         let weak = Rc::downgrade(&this);
         restore.connect_clicked(move |_| {
             if let Some(this) = weak.upgrade() {
