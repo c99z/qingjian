@@ -8,3 +8,4 @@ Icon=qingjian
 Categories=Settings;Utility;
 Keywords=输入法;青简;设置;input;method;
 StartupNotify=true
+StartupWMClass=im.qingjian.Settings

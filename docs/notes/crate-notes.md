@@ -354,6 +354,7 @@ Unix socket 用共享长度前缀与 Frame（当前公共版本 7，与 `PROTOCO
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
 插件注册托盘菜单动作「青简设置」并在 `activate` 时挂到状态区 InputMethod 组（托盘菜单只枚举状态区动作，注册到 UserInterfaceManager 不够），触发时 `startProcess` 启动 `qingjian-linux-settings`；addon 与 inputmethod 的 `.conf` 均 `Configurable=True`，
 引擎只暴露一个 `ExternalOption`（URI 即命令名，configtool 点「配置」弹出的对话框就是它的启动按钮），addon 自身不存配置。
+应用图标母版在 `assets/icon/logo.png`，`assets/icon/generate.py` 同步 Linux 多尺寸 PNG 与 Windows ICO；Linux 安装和打包使用 `assets/icon/linux/`，Fcitx5 和 desktop 的图标名均为 `qingjian`，GTK 应用 ID `im.qingjian.Settings` 使用同图别名。
 
 管理 socket（`qingjian-admin.sock`，协议 `LINUX_ADMIN_PROTOCOL = 3`，serde 类型在 `qingjian_platform::protocol::linux_admin`，Server 的 `protocol/admin` 只 re-export，路径规则也在平台层）提供 `status` / `reload` / `stats` / `clear_input_log` / `backup` / `restore`；`dispatch/reload` 一秒轮询配置 mtime，
 学习开关立即生效，其余修改等所有会话组句结束（`dispatch/reload/tests.rs` 与 `tests/reload.rs` 覆盖组句不丢、挂起会话、坏配置保持）。

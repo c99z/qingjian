@@ -39,9 +39,12 @@ def main():
         raise SystemExit('XDG_DATA_HOME 必须是绝对路径')
     files = {prefix / 'share/licenses/qingjian/LICENSE': root / 'LICENSE',
              prefix / 'share/licenses/qingjian/LICENSE-CNS11643.txt': root / 'assets/stroke/LICENSE-CNS11643.txt',
-             data / 'icons/hicolor/128x128/apps/qingjian.png': root / 'assets/icon/logo.png',
              prefix / 'bin/qingjian-linux-server': Path(server),
              prefix / 'lib/fcitx5/qingjian.so': Path(plugin)}
+    for source in (root / 'assets/icon/linux').glob('*/apps/qingjian.png'):
+        target = data / 'icons/hicolor' / source.relative_to(root / 'assets/icon/linux')
+        files[target] = source
+        files[target.with_name('im.qingjian.Settings.png')] = source
     if settings != '-':
         files[prefix / 'bin/qingjian-linux-settings'] = Path(settings)
         files[data / 'applications/qingjian-settings.desktop'] = root / 'apps/linux/settings/qingjian-settings.desktop'
