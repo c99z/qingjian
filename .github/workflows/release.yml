@@ -66,6 +66,13 @@ jobs:
               echo "${MANIFEST[$platform]} 是 $found，标签是 $GITHUB_REF_NAME，先改版本号再打标签" >&2
               exit 1
             fi
+            if [[ "$platform" == "linux" ]]; then
+              settings_version="$(sed -n 's/^version = "\(.*\)"/\1/p' apps/linux/settings/Cargo.toml | head -1)"
+              if [[ "$settings_version" != "$VERSION" ]]; then
+                echo "Linux 设置程序是 $settings_version，标签是 $GITHUB_REF_NAME，两个 Linux 产品版本必须一致" >&2
+                exit 1
+              fi
+            fi
           done
           if [[ "$VERSION" == *-dev ]]; then
             echo "$VERSION 还是开发版号，发版提交要先去掉 -dev（docs/notes/release.md）" >&2
@@ -273,10 +280,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
-      - name: Install Fcitx5 build dependencies
+      - name: Install Fcitx5 and GTK build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ pkg-config libssl-dev libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev fcitx5
+          sudo apt-get install -y cmake g++ pkg-config libssl-dev libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev fcitx5 libgtk-4-dev libadwaita-1-dev
 
       - name: Fetch product data
         env:
@@ -288,7 +295,7 @@ jobs:
       - name: Build package
         run: apps/linux/scripts/package.sh
 
-      # 装进临时目录再卸载：包里文件齐、校验过得去、两个二进制在这台机器上找得到全部动态库
+      # 装进临时目录再卸载：输入组件、设置程序和桌面资源齐全，动态库没有缺失
       - name: Smoke-test package
         run: |
           work="$RUNNER_TEMP/package-test"
@@ -297,11 +304,17 @@ jobs:
           cd "$work"/qingjian-*/
           export XDG_DATA_HOME="$work/data"
           ./install.sh --prefix "$work/prefix"
-          for binary in "$work/prefix/bin/qingjian-linux-server" "$work/prefix/lib/fcitx5/qingjian.so"; do
+          test -f "$work/data/applications/qingjian-settings.desktop"
+          test -f "$work/data/icons/hicolor/128x128/apps/qingjian.png"
+          test -f "$work/data/icons/hicolor/128x128/apps/im.qingjian.Settings.png"
+          for binary in "$work/prefix/bin/qingjian-linux-server" "$work/prefix/bin/qingjian-linux-settings" "$work/prefix/lib/fcitx5/qingjian.so"; do
             if ldd "$binary" | grep 'not found'; then exit 1; fi
           done
           ./uninstall.sh --prefix "$work/prefix"
           test ! -e "$work/prefix/bin/qingjian-linux-server"
+          test ! -e "$work/prefix/bin/qingjian-linux-settings"
+          test ! -e "$work/data/applications/qingjian-settings.desktop"
+          test ! -e "$work/data/icons/hicolor/128x128/apps/qingjian.png"
 
       - name: Upload to draft release
         env:

@@ -5,7 +5,7 @@ description: 在 Linux 上安装青简，使用 Fcitx5 默认候选面板。
 ---
 
 青简 Linux 提供预编译包与源码安装，使用 Fcitx5 默认候选面板。已验证 Ubuntu 26.04 的 GNOME 桌面（Wayland）上 Fcitx5 5.1.19 的 GTK4、Qt6 应用与 Firefox；
-其他桌面、其他发行版和旧版应用尚未完成验证。当前源码支持本地候选、学习、本地整句模型重排及可选云联想，并提供独立设置窗口。服务仍需手动启动；较早发布的预编译包不包含新增设置功能。
+其他桌面、其他发行版和旧版应用尚未完成验证。0.1.5 支持本地候选、学习、本地整句模型重排及可选云联想，并提供独立设置窗口。服务仍需手动启动；较早发布的预编译包不包含新增设置功能。
 
 ## 预编译包
 
@@ -13,7 +13,7 @@ description: 在 Linux 上安装青简，使用 Fcitx5 默认候选面板。
 先装好 Fcitx5 与 GTK / Qt 输入支持：
 
 ```sh
-sudo apt install python3 fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt6 fcitx5-config-qt
+sudo apt install python3 fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt6 fcitx5-config-qt libgtk-4-1 libadwaita-1-0
 ```
 
 从[下载页](https://qingjian.app/download)下载 `qingjian-<版本>-linux-x86_64.tar.gz`，解压后在解出的目录里执行：
@@ -25,7 +25,7 @@ sudo apt install python3 fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5
 ~/.local/bin/qingjian-linux-server
 ```
 
-之后的添加输入法、首次输入与源码安装相同，见下一节末尾。更新时下载新包再执行一次 `./install.sh`；卸载用包里的 `./uninstall.sh`。
+之后的添加输入法、首次输入与源码安装相同，见下一节末尾。更新时下载新包再执行一次 `./install.sh`；卸载用包里的 `./uninstall.sh`。只安装输入组件、不安装设置窗口时，可用 `./install.sh --input-only`，不需要 GTK4 与 libadwaita 运行库。
 
 ## 源码安装和首次输入
 
@@ -83,9 +83,9 @@ cargo build -p qingjian-linux-settings
 
 ## 配置、隐私和数据
 
-首次运行生成 `~/.config/qingjian/config.toml`。源码开发版服务会自动读取保存后的修改；正在输入时，相关设置等所有输入窗口本轮输入结束后生效。较早安装包仍需重启青简服务。
+首次运行生成 `~/.config/qingjian/config.toml`。0.1.5 服务会自动读取保存后的修改；正在输入时，相关设置等所有输入窗口本轮输入结束后生效。较早安装包仍需重启青简服务。
 `[general] preedit` 可设为 `both`（行内和候选窗口）、`inline`（只在行内）、`window`（只在候选窗口）；应用不支持行内显示时使用候选窗口。
-每页候选数、翻页键、学习、日志和辅助语言使用同一配置文件。`learning_language = "off"` 关闭中文候选的辅助语言释义与生词标记。系统面板外观由 Fcitx5 设置控制，也可通过源码开发版的「候选与外观」页修改。
+每页候选数、翻页键、学习、日志和辅助语言使用同一配置文件。`learning_language = "off"` 关闭中文候选的辅助语言释义与生词标记。系统面板外观由 Fcitx5 设置控制，也可通过「候选与外观」页修改。
 当前预编译包随附含章·通变与含章·知微：优先用通变处理拼音整句与纠错，没有通变时回退到知微。自己的 `.qjm` 也可放入 `~/.local/share/qingjian/models/` 下对应的模型目录。`[model] enabled = false` 可关闭本地模型，见 [本地整句模型](../input/local-model.md)。
 
 `[general] shift_letter = "compose"` 让 Shift 大写字母参与中文组句，默认 `"passthrough"` 保持临时英文输入。

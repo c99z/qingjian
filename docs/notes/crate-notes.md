@@ -207,6 +207,7 @@ Linux 的 XDG 路径（配置/数据/日志/资源根，含 `QINGJIAN_RESOURCES`
 （`signature.rs`，`PUBLIC_KEYS` 列表，`verify_strict`）；`checker/` 是调度（`Checker::poll` 由壳的每秒定时器调，到点起一次性线程）、落盘状态 `UpdateState`（`update.json`，先写临时文件再改名）
 与查到的结果 `Available`。`Version` 自己实现语义化版本比较，不引 semver。`[update]` 配置与 `UpdateChannel` 在 `qingjian-platform`。
 `examples/check.rs` 手动走一遍；`tools/release-sign` 是发版侧的 keygen / sign / verify。
+`PUBLIC_KEYS` 同时信任上游与 `c99z/qingjian` 分支仓库的发布索引；两份私钥分别由各自仓库的 `QINGJIAN_INDEX_SIGNING_KEY` 管理，分支发版密钥位置见 [发版流程](release.md#版本索引的签名)。
 
 ## apps/cli
 

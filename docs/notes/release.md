@@ -10,7 +10,7 @@
 0.1.4 起三个平台共用版本号、共用一个 GitHub Release（标签 `v<版本>`）：同一个版本号、同一份更新日志只出现一次，三个平台的安装包都挂在上面。
 
 1. 改版本号，把 `-dev` 去掉：`apps/macos/Cargo.toml`（Info.plist 与 pkg 文件名从这里取）、`apps/windows/{server,tsf,settings}/Cargo.toml`（三个一起改，打包读 `server`）、
-   `apps/linux/server/Cargo.toml`，然后 `cargo update --workspace --offline` 同步 `Cargo.lock`。
+   `apps/linux/{server,settings}/Cargo.toml`（两个一起改），然后 `cargo update --workspace --offline` 同步 `Cargo.lock`。
    **发版之间版本号一直带 `-dev`**（Rust nightly / Firefox Nightly 那套）：Cargo.toml 写 `0.1.5-dev`，打包脚本再接上 git 短哈希，
    本地装的、CI 中间构建的都显示 `0.1.5-dev-1a2b3c4`（工作区有改动加 `+`），测试时一眼知道装的是哪个提交；版本号干净的一定是线上包；带 `-dev` 的标签 CI 直接拒绝。
    pkg 的 `--version`、Inno 的 `VersionInfoVersion` 只认数字点号，`bundle.sh` / `build.ps1` 去掉后缀再传，文件名保留完整版本。
@@ -51,8 +51,9 @@ Rust 工具链由 `rust-toolchain.toml` 钉版本（现在 1.96.0），两个 wo
   代价是候选窗在任务栏搜索 / 设置这类 UWP 宿主里可能被盖住，用户文档与 CHANGELOG 已列为已知问题。
   Certum 开源证书办下来后：在 `build.ps1` 加 signtool 一步（`sign-local.ps1` 是本机自签的参考），workflow 去掉那个环境变量；SmartScreen 对无签名安装包的拦截也一并消失。
   Inno Setup 钉 7.1.0（与开发机同版本、钉死 GitHub Release 上的安装程序与哈希）。
-- **Linux**：`apps/linux/scripts/package.sh` 打的包里是编好的 Server 与 Fcitx5 插件、产品数据压缩包、`install.sh` / `uninstall.sh` / `files.py`，按仓库相对路径放，
+- **Linux**：`apps/linux/scripts/package.sh` 打的包里是编好的 Server、Fcitx5 插件与 GTK 设置程序、桌面入口与多尺寸图标、产品数据压缩包、`install.sh` / `uninstall.sh` / `files.py`，按仓库相对路径放，
   安装与源码安装走同一份清单与校验；打完先装进临时目录冒烟测试（文件齐、校验过、`ldd` 无缺库）再上传。
+  构建依赖包含 `libgtk-4-dev` 与 `libadwaita-1-dev`；门禁同时检查 Server 与设置程序版本，冒烟测试覆盖设置程序动态库、桌面资源与卸载。
   插件链接构建机的 Fcitx5（`build-info.json` 的 `platforms.linux.runner` 记了版本），所以只承诺 Ubuntu 26.04，其他发行版走源码安装。
 - **官网**：安装包按文件名识别平台（`ASSET_KINDS`），下载页按访问者平台取「有该平台安装包的最新版本」（`latestFor`）；0.1.3 及更早按平台分开的 Release 照样识别，同版本号合在一条里。
 
@@ -98,6 +99,7 @@ cargo 命令全 `--locked`（含 `bundle.sh` 与 `build.ps1`）。普通 CI 只�
 两个文件一起挂到本次 Release 与 GitHub latest；官网构建时原样拷到 `https://qingjian.app/releases.json` 与 `.sig`。
 
 - 私钥是仓库 Secret `QINGJIAN_INDEX_SIGNING_KEY`（base64 的 32 字节）；没配时 `release.yml` 的门禁直接失败。维护者本机留一份在 `~/.config/qingjian/index-signing.key`（不进仓库）。
+- `c99z/qingjian` 分支仓库独立配置同名 Secret，本机私钥在 `~/.config/qingjian/c99z-index-signing.key`；对应公钥加入 `PUBLIC_KEYS` 并保留上游公钥。私钥不提交，分支发布不会触发上游官网更新。
 - 换钥：`cargo run -p qingjian-release-sign -- keygen --out <新文件>`，把打印的公钥加进 `crates/qingjian-update/src/index/signature.rs` 的 `PUBLIC_KEYS`（新旧并列），
   发一两个版本后再换 Secret、去掉旧公钥。直接换 Secret 会让所有已装版本收不到更新。
 - 改了 CHANGELOG 后用 `publish-releases-json.sh` 重刷索引同样要带这个环境变量。
