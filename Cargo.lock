@@ -3263,7 +3263,7 @@ dependencies = [
 
 [[package]]
 name = "qingjian-linux-server"
-version = "0.1.5"
+version = "0.1.6-dev"
 dependencies = [
  "libc",
  "qingjian-core",
@@ -3285,7 +3285,7 @@ dependencies = [
 
 [[package]]
 name = "qingjian-linux-settings"
-version = "0.1.5"
+version = "0.1.6-dev"
 dependencies = [
  "gio",
  "gtk4",

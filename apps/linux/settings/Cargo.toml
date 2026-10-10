@@ -1,7 +1,7 @@
 [package]
 name = "qingjian-linux-settings"
 description = "青简输入法的 GTK4/libadwaita 设置应用"
-version = "0.1.5"
+version = "0.1.6-dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
