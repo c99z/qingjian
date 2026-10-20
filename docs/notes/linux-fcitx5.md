@@ -29,7 +29,7 @@ CTest 的 `real-server` 实际运行 Rust Server 并通过 InputContext 输入�
 
 同用户 Unix socket，长度前缀为 4 字节小端，单消息上限 16 MiB；每次插件收发共用 200 ms 截止时间。
 插件只持有一条连接和一个 I/O watcher，每个 InputContext 分配独立、递增的 session ID。
-每个会话先 `OpenSession` 校验共享协议版本（6），再协商 `LinuxHello` v3，携带 session/generation/context，返回会话编号和既有预编辑设置。
+每个会话先 `OpenSession` 校验共享协议版本（7），再协商 `LinuxHello` v3，携带 session/generation/context，返回会话编号和既有预编辑设置。
 首次能力确认前不接受输入；握手与能力状态逐会话保存。同一连接支持超过 64 个上下文，64 条连接的资源保护不限制单连接会话数。
 Linux 的首个回包仍是含 `linux_ui` 的 `Update`，不额外发送 Windows DLL 使用的 `SessionOpened`；旧版插件的协议 5 连接会被拒绝，升级时需同时更新 Server 与插件。
 旧版本或损坏响应关闭连接、清空显示并放行当前输入；重连创建全新输入状态，旧提交不会重放。
@@ -63,7 +63,7 @@ FocusOut 的行内预编辑由框架或声明 ClientUnfocusCommit 的客户端�
 ## 管理 socket 与配置热重载
 
 管理 socket 与按键 socket 分开：同目录的 `qingjian-admin.sock`（`QINGJIAN_ADMIN_SOCKET` 可覆盖），同样的 0600 权限、父目录检查、陈旧清理、长度前缀 JSON 与同 uid 校验。
-协议独立版本化（`LINUX_ADMIN_PROTOCOL = 2`），版本不符或无法解析的请求回 `Error` 并断开；请求进主线程同一队列，与按键处理串行。
+协议独立版本化（`LINUX_ADMIN_PROTOCOL = 3`），版本不符或无法解析的请求回 `Error` 并断开；请求进主线程同一队列，与按键处理串行。
 当前命令：`status`（版本、配置代次与挂起状态、上次错误、模型状态、云服务 disabled 占位）、`reload`（立即读盘应用，返回 `ComponentStatus`）、`stats`（今日 / 近七天 / 累计输入量与词汇统计），`clear_input_log`（关闭旧日志缓冲后截断，按已应用的开关重开写入端，返回 `Maintenance(ComponentStatus)`）。
 
 热重载在 `dispatch/reload`：一秒节拍轮询 `config.toml` 的 mtime（原子替换后按路径重读即可），解析失败保持上一次可用配置并把错误留在 `status` 里。
@@ -103,3 +103,14 @@ Server 启动时按 `[model] enabled`（缺省开）在后台线程加载模型�
 
 设置应用统计页服务离线时读 `usage.tsv` / `user-vocab.tsv` 并标明更新时间。清空日志只由服务操作既定日志路径，不接收外部文件参数。
 插件集成夹具中的 socket 总数为三：按键监听、管理监听、共享插件连接；多个上下文仍复用同一条插件连接。
+
+
+## 最近输入语境实验（2026-10-21）
+
+`[model] context_ranking` 默认关闭。开启后后台同时装配通变基础模型与知微语境模型，语境词/句排序、候选池限制、失效规则均在 Core。Fcitx 插件本阶段没有增加周围文本采集，LinuxHello 仍为 v3，共享输入协议仍为 v7。管理协议 v3 的 Status 新增可选 `context_model`；旧服务未返回该字段时，设置页显示未提供状态。
+
+语境来源是最近连续提交（64 字），失焦、未知编辑、删除已提交文本或敏感边界清除。基础与语境分一起从后台返回；开启语境的每轮输入最多更新一次，主动导航后冻结候选。待执行任务与已完成结果各最多一份，任务带代次；A→B→A 的旧结果不会恢复。模型或语境加载失败不阻断基本输入，状态分别报告。
+
+设置改动沿用组句边界热加载。加载任务归属应用后的配置代次，加载过程中改变其他设置也不会误丢掉仍适用的模型。隔离的真实服务已验证双模型加载、知微缺失降级及组句中修改开关后延后应用；Fcitx 47 项集成通过。GTK 原生语境开关的编辑、撤销、保存、重新打开通过，但锁屏环境的窗口缩放/绘制检查未通过，具体应用中的输入体验尚未验收。
+
+当前默认线程下，128 条长句对照的稳定候选 p95 为 513–543 ms，超出 300 ms 预算；未证明长句收益。200 条语境样本仍是未经人工核验的草稿。这些结果不足以启用或部署，应用前后文阶段尚未实施。可复现实验和验收明细保存于本机 `~/plan/qingjian-context-ranking-report-20261021.md`，原安装保持不变。
