@@ -4,11 +4,24 @@ use super::{Engine, Learner, MAX_CODE_LENGTH, segment_longest_prefix};
 use crate::correction::{self, Correction};
 
 impl Engine {
+    /// 关闭后只按原拼音和显式配置的模糊音查询，英文拼写建议独立。
+    pub fn set_pinyin_correction(&mut self, enabled: bool) {
+        if self.pinyin_correction != enabled {
+            self.pinyin_correction = enabled;
+            *self.correction_cache.borrow_mut() = None;
+            self.forget_span_cache();
+        }
+    }
+
+    pub fn pinyin_correction(&self) -> bool {
+        self.pinyin_correction
+    }
+
     /// 这段作用域生效的拼写纠正（带缓存）：拼音不像话、用户没对它回车原样上屏过、
     /// 且一处编辑后能凑出至少一个两音节词时，取整句转换得分最高的那个纠正。
     pub(super) fn active_correction(&self, scope: &str) -> Option<Correction> {
         // 双拼敲错一个键换掉的是整个声母 / 韵母，全拼那套「一处编辑」的纠错模型不适用
-        if self.shuangpin.is_some() {
+        if !self.pinyin_correction || self.shuangpin.is_some() {
             return None;
         }
         // 形码敲的是字根编码，不是拼音；混输下四码以内可能是编码，超过四码才只剩拼音

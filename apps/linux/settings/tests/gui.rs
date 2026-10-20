@@ -135,9 +135,13 @@ fn native_window_edits_reverts_saves_and_renders() {
         stats_source
             .subtitle()
             .as_deref()
-            .is_some_and(|s| s != "读取中…")
+            .is_some_and(|s| !s.is_empty() && s != "读取中…")
     });
-    assert!(stats_source.subtitle().unwrap().contains("服务未运行"));
+    assert!(
+        stats_source.subtitle().unwrap().contains("服务未运行"),
+        "统计来源：{:?}",
+        stats_source.subtitle()
+    );
     // 新页面真实控件编辑与密钥落盘，不使用真实密钥和外网。
     sidebar.select_row(sidebar.row_at_index(8).as_ref());
     wait_for(|| stack.visible_child_name().as_deref() == Some("8"));

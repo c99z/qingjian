@@ -267,7 +267,11 @@ impl Engine {
             .as_ref()
             .map_or(self.composition.scope(), |d| d.pinyin());
         let letters = typed.chars().filter(|c| *c != '\'').count();
-        let allowed = tolerance(letters);
+        let allowed = if self.pinyin_correction {
+            tolerance(letters)
+        } else {
+            0
+        };
         words.retain(|word| {
             let fits = !word.syllables.is_empty()
                 && word.text.chars().count() == word.syllables.len()

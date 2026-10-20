@@ -46,4 +46,21 @@ pub fn verify(window: &gtk::Window, stack: &gtk::Stack, widgets: &[gtk::Widget],
         });
         assert_eq!(first.is_sensitive(), expected.mixed());
     }
+    let correction = widgets
+        .iter()
+        .filter_map(|w| w.clone().downcast::<adw::SwitchRow>().ok())
+        .find(|r| r.title() == "拼音自动纠错")
+        .unwrap();
+    assert!(correction.is_active());
+    correction.set_active(false);
+    assert!(Config::load(path).unwrap().general.pinyin_correction);
+    revert.emit_clicked();
+    assert!(correction.is_active());
+    for enabled in [false, true] {
+        correction.set_active(enabled);
+        window.activate_action("win.apply", None).unwrap();
+        wait_for(|| {
+            stack.is_sensitive() && Config::load(path).unwrap().general.pinyin_correction == enabled
+        });
+    }
 }

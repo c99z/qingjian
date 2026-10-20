@@ -68,13 +68,14 @@ fn composing_session_defers_until_boundary_and_keeps_input() {
     assert!(router.any_composing());
     std::fs::write(
         &path,
-        "[general]\npage_size = 3\nchinese_input_style = \"chinese\"\n",
+        "[general]\npage_size = 3\nchinese_input_style = \"chinese\"\npinyin_correction = false\n",
     )
     .unwrap();
     assert_eq!(reload(&mut router), ComponentStatus::PendingReload);
     assert_eq!(router.config.page_size, 9);
     assert_eq!(router.reload_generation(), 0);
     assert!(router.engine.chinese_input_style().mixed());
+    assert!(router.engine.pinyin_correction());
     // 组句继续，拼音还在
     key(&mut router, 1, 'i');
     assert_eq!(router.engine.composition().text(), "ni");
@@ -85,6 +86,7 @@ fn composing_session_defers_until_boundary_and_keeps_input() {
     assert_eq!(router.config.page_size, 3);
     assert_eq!(router.reload_generation(), 1);
     assert!(!router.engine.chinese_input_style().mixed());
+    assert!(!router.engine.pinyin_correction());
     std::fs::remove_dir_all(&root).unwrap();
 }
 

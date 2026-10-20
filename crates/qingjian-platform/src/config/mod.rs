@@ -229,6 +229,8 @@ chinese_first = false
 # 中文输入候选策略：chinese 专注中文（关闭自动英文候选与拼接，过滤模型夹英文结果）/ mixed 中英混输
 # 与主动切换到英文模式独立；旧配置缺省 mixed
 chinese_input_style = "mixed"
+# 全拼自动纠错；false 关闭拼写修正、敲错候选与本地模型生成兜底，模糊音和英文模式独立
+pinyin_correction = true
 # 中文模式下按住 Shift 敲的字母：passthrough 拼音原样上屏、字母交给应用（缺省，与以前一致）/ compose 收进组句
 # 缓冲区参与匹配，这样 Cpan 与 cpan 一样能出「C盘」。英文模式与英文直输段（no-Way）不受影响
 shift_letter = "passthrough"

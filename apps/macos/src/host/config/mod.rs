@@ -24,6 +24,8 @@ impl Host {
         self.engine
             .set_chinese_input_style(config.general.chinese_input_style);
         self.engine
+            .set_pinyin_correction(config.general.pinyin_correction);
+        self.engine
             .set_shift_letter_compose(config.general.shift_letter.compose());
         self.apply_scheme(config.general.scheme(), config.general.wubi());
         self.engine

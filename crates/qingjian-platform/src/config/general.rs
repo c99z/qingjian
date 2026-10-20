@@ -61,6 +61,9 @@ pub struct GeneralConfig {
     /// 中文候选策略：chinese 专注中文 / mixed 中英混输（旧配置缺省）。
     pub chinese_input_style: ChineseInputStyle,
 
+    /// 全拼自动纠错：整段修正、音节敲错边与本地模型生成兜底；默认开启。
+    pub pinyin_correction: bool,
+
     /// 中文模式下按住 Shift 敲的字母：交给应用（缺省）还是收进组句缓冲区参与匹配。
     /// 收进组句才能打出「C盘」这类混杂词（`Cpan` 与 `cpan` 一样匹配）。
     pub shift_letter: ShiftLetter,
@@ -135,6 +138,7 @@ impl Default for GeneralConfig {
             traditional: false,
             chinese_first: false,
             chinese_input_style: ChineseInputStyle::default(),
+            pinyin_correction: true,
             shift_letter: ShiftLetter::default(),
             english_mode: true,
             full_width_punctuation: true,
@@ -285,6 +289,17 @@ mod tests {
             assert_eq!(toml::from_str::<GeneralConfig>(&saved).unwrap(), general);
         }
         assert!(toml::from_str::<GeneralConfig>(r#"chinese_input_style = "invalid""#).is_err());
+    }
+
+    #[test]
+    fn correction_defaults_on_and_can_be_disabled() {
+        assert!(GeneralConfig::default().pinyin_correction);
+        let config: GeneralConfig = toml::from_str("pinyin_correction = false\n").unwrap();
+        assert!(!config.pinyin_correction);
+        assert_eq!(
+            toml::from_str::<GeneralConfig>(&toml::to_string(&config).unwrap()).unwrap(),
+            config
+        );
     }
 
     #[test]

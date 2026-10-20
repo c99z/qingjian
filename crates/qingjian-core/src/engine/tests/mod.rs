@@ -4,6 +4,7 @@ mod aux_code;
 mod cloud;
 mod code;
 mod competition;
+mod contextual_correction;
 mod correction;
 mod custom;
 mod emoji;

@@ -7,6 +7,7 @@
 //! 按键回调永远不等模型：先按词级模型出候选，模型的意见晚几十毫秒到。
 
 mod cache;
+mod readings;
 mod worker;
 
 #[cfg(test)]
@@ -98,9 +99,17 @@ impl Engine {
             let neural = cache.get(&path.text).expect("filled above");
             path.score + lambda * (neural - path.static_score)
         };
+        let reading_offsets = if self.has_typo_paths(paths, keys) {
+            readings::offsets(paths, rescored)
+        } else {
+            Default::default()
+        };
+        let score = |path: &Conversion| {
+            rescored(path) + reading_offsets.get(&path.syllables).copied().unwrap_or(0.0)
+        };
         paths.sort_by(|a, b| {
-            rescored(b)
-                .partial_cmp(&rescored(a))
+            score(b)
+                .partial_cmp(&score(a))
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         self.last_rescored.set(true);

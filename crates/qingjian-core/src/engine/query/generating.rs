@@ -1,7 +1,7 @@
 //! 词图读不通整段输入时的兜底候选：让模型直接按按键生成整句。
 
 use crate::candidate::{Candidate, CandidateKind};
-use crate::engine::{Engine, MIN_GENERATED_LETTERS};
+use crate::engine::{Engine, Learner, MIN_GENERATED_LETTERS};
 use crate::parser::Segmentation;
 use crate::sentence;
 
@@ -30,7 +30,9 @@ impl Engine {
         corrected: bool,
         items: &[Candidate],
     ) -> Vec<Candidate> {
-        if keys.len() < MIN_GENERATED_LETTERS
+        if !self.pinyin_correction
+            || self.learner.raw_count(keys) > 0
+            || keys.len() < MIN_GENERATED_LETTERS
             || self.shuangpin.is_some()
             || self.zhuyin
             || !keys.bytes().all(|b| b.is_ascii_lowercase())

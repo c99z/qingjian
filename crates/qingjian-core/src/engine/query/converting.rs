@@ -82,7 +82,7 @@ impl Engine {
     ///
     /// `alternates` 为真且输入够长时把重排后的第 2、3 条路径也给出来（[`SENTENCE_CANDIDATES`] 条封顶）：
     /// 长句错一个字就得整句拆开重打，一条候选不够用；短输入不给，那几格留给词级候选更值。
-    /// 备选只收真整句（路径上不止一个词），「整段读成一个词」那种噪声信道的判断只认第一条。
+    /// 备选收真整句，以及参与敲错竞争的整词纠正。
     pub(super) fn plain_sentence(
         &self,
         items: &mut Vec<Candidate>,
@@ -98,7 +98,12 @@ impl Engine {
         } else {
             1
         };
-        let mut paths = self.sentence_paths(&best.patterns(), typos, false, wanted);
+        let search = if self.pinyin_correction && typos && alternates {
+            wanted.max(2)
+        } else {
+            wanted
+        };
+        let mut paths = self.sentence_paths(&best.patterns(), typos, false, search);
         if paths.is_empty() {
             return SentenceBatch::default();
         }
@@ -117,6 +122,13 @@ impl Engine {
         // 免得整句仅凭插入位置压过它。模型重排时也必须看到这条整词路径。
         let recovered_word_wins = typos && self.compete_with_exact_word(items, best, &mut paths);
         let after = recovered_word_wins.then(|| paths[0].text.clone());
+        // 短词也保留纠错与原样的备选，避免强制首选；整词纠正不能因掉到第二位就消失。
+        let has_correction = self.has_typo_paths(&paths, &best.joined(""));
+        let wanted = if has_correction && alternates {
+            wanted.max(2)
+        } else {
+            wanted
+        };
         let mut out: Vec<Candidate> = Vec::new();
         for (rank, conversion) in paths.into_iter().enumerate() {
             if out.len() >= wanted {
@@ -133,10 +145,10 @@ impl Engine {
             }
             // 整段本来就是一个词时不出整句；但路径靠敲错变体把整段读成的一个词（`meiganxi` → 没关系）是噪声信道的判断，
             // 词级查询按原样查不到它，作为普通词候选插到最前。只读了一部分（末尾没打完的音节没算进去）的不插。
-            // 备选只收真整句，单个词的第 2、3 条路径是噪声
+            // 未参与敲错竞争的单词备选仍交给普通词级排序。
             let kind = if conversion.word_count() >= 2 {
                 CandidateKind::Sentence
-            } else if first
+            } else if (first || has_correction)
                 && conversion.altered()
                 && conversion.syllables.len() == best.syllables.len()
             {
@@ -229,7 +241,31 @@ impl Engine {
         // 词级候选与整句最后会合并：整句不能靠插入位置绕过同码选择偏好。
         // 在神经重排前加进个人分，static_score 不变，模型替换静态分时便不会抹掉它。
         let keys: String = patterns.iter().map(|p| p.text).collect();
-        let mut preferred = false;
+        if typos && self.has_typo_paths(&paths, &keys) {
+            // 敲错路径可能在共享的末词前驱处挤掉原读音；保留独立的原拼音搜索结果。
+            let literal = self.expand_positions(patterns, false);
+            let original = sentence::convert_paths(
+                &dictionaries,
+                &literal.positions(),
+                whole,
+                k,
+                &*self.language_model,
+                self.personal(),
+                |text| self.learner.weight(text),
+                |index, syllable| literal.cost(index, syllable),
+                &mut self.span_cache.borrow_mut(),
+            );
+            for path in original {
+                if !paths
+                    .iter()
+                    .any(|p| p.text == path.text && p.syllables == path.syllables)
+                {
+                    paths.push(path);
+                }
+            }
+        }
+        self.apply_correction_context(&mut paths, &keys);
+        let mut preferred = self.has_typo_paths(&paths, &keys);
         for path in &mut paths {
             let bonus = self.sentence_choice_bonus(&keys, &path.text);
             path.score += bonus;

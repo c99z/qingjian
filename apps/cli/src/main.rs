@@ -303,6 +303,7 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
     }
     engine.set_chinese_first(args.chinese_first || config.general.chinese_first);
     engine.set_chinese_input_style(config.general.chinese_input_style);
+    engine.set_pinyin_correction(config.general.pinyin_correction);
     engine.set_traditional_mode(config.general.traditional);
     engine.set_fuzzy(config.fuzzy);
     engine.set_mode_keys(config.shortcut.mode);

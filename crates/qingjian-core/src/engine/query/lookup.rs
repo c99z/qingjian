@@ -1,6 +1,11 @@
 //! 词级查找：每个位置展开成多种写法，再按这些写法查主词库与用户词。
 
-use super::*;
+use qingjian_dictionary::Match;
+
+use crate::correction::{self, typo};
+use crate::engine::{Engine, Learner};
+use crate::fuzzy::Expanded;
+use crate::parser::Segmentation;
 
 impl Engine {
     /// 每个位置的写法：敲的原样、模糊音，再加音节级敲错变体（`correction::typo`）当带代价的边，
@@ -12,7 +17,8 @@ impl Engine {
         typos: bool,
     ) -> Expanded {
         let mut expanded = self.fuzzy.expand(patterns);
-        if !typos {
+        if !typos || !self.pinyin_correction || self.learner.raw_count(self.composition.scope()) > 0
+        {
             return expanded;
         }
         let letters: usize = patterns.iter().map(|p| p.text.len()).sum();

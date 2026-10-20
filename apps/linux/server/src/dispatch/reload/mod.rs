@@ -182,6 +182,8 @@ impl Router {
         self.engine.set_chinese_first(config.general.chinese_first);
         self.engine
             .set_chinese_input_style(config.general.chinese_input_style);
+        self.engine
+            .set_pinyin_correction(config.general.pinyin_correction);
         self.engine.set_mode_keys(config.shortcut.mode);
         if let Err(error) = self
             .engine

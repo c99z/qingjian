@@ -26,6 +26,8 @@ pub struct GeneralPage {
 
     chinese_input_style: adw::ComboRow,
 
+    pinyin_correction: adw::SwitchRow,
+
     shift_letter: adw::ComboRow,
 
     /// 字段路径 → 行，校验失败时标注用。
@@ -117,6 +119,14 @@ impl GeneralPage {
             .set_subtitle("专注中文关闭自动英文候选和拼接；需要英文时可切换到英文模式");
         candidates.add(&chinese_input_style);
         candidates.add(&chinese_first);
+        let ctx_correction = ctx.clone();
+        let pinyin_correction = switch_row(
+            "拼音自动纠错",
+            "全拼下纠正漏键、错键和颠倒；结合语境与选词习惯排序，关闭后按原拼音查询",
+            move |on| ctx_correction.set("general", "pinyin_correction", on),
+            &syncing,
+        );
+        candidates.add(&pinyin_correction);
 
         let shift_labels: Vec<&str> = ShiftLetter::ALL.iter().map(|s| s.label()).collect();
         let ctx_shift = ctx.clone();
@@ -151,6 +161,10 @@ impl GeneralPage {
                 "general.chinese_input_style",
                 chinese_input_style.clone().upcast(),
             ),
+            (
+                "general.pinyin_correction",
+                pinyin_correction.clone().upcast(),
+            ),
             ("general.shift_letter", shift_letter.clone().upcast()),
         ];
         Self {
@@ -162,6 +176,7 @@ impl GeneralPage {
             english_candidates,
             chinese_first,
             chinese_input_style,
+            pinyin_correction,
             shift_letter,
             fields,
         }
@@ -196,6 +211,7 @@ impl SettingsPage for GeneralPage {
         );
         self.english_candidates
             .set_active(general.english_candidates);
+        self.pinyin_correction.set_active(general.pinyin_correction);
         self.chinese_first.set_active(general.chinese_first);
         self.chinese_first
             .set_sensitive(general.chinese_input_style.mixed());

@@ -33,7 +33,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use qingjian_dictionary::{AuxCodeLookup, CodeTable, Dictionary, Match, WordList};
+use qingjian_dictionary::{AuxCodeLookup, CodeTable, Dictionary, WordList};
 
 pub use alignment::Alignment;
 pub use annotation::AnnotationReport;
@@ -65,9 +65,9 @@ pub use vocabulary::{
 
 use crate::candidate::{Candidate, CandidateKind, Language};
 use crate::composition::Composition;
-use crate::correction::{self, Correction, TypoCosts, typo};
+use crate::correction::{Correction, TypoCosts};
 use crate::emoji::EmojiTable;
-use crate::fuzzy::{Expanded, FuzzyRules};
+use crate::fuzzy::FuzzyRules;
 use crate::history::InputHistory;
 use crate::parser::{self, ParseError, Segmentation};
 use crate::punctuation::Punctuation;
@@ -160,6 +160,9 @@ pub struct Engine {
 
     /// 敲错纠正的代价；同上，只有回放调参会改（`set_typo_costs`）。
     typo_costs: TypoCosts,
+
+    /// 是否启用全拼自动纠错（整段修正、音节敲错边与生成兜底）。
+    pinyin_correction: bool,
 
     /// 最近几次上屏各记了哪些学习、之后退格了几个字；用户把它们删掉重选时把学习退回去（见 [`Self::note_backspace`]）。
     /// 最新的在末尾，最多留 [`RECENT_COMMITS`] 条。
@@ -412,6 +415,7 @@ impl Engine {
             neural_margin: NEURAL_MARGIN,
             interpolation: Interpolation::DEFAULT,
             typo_costs: TypoCosts::DEFAULT,
+            pinyin_correction: true,
             neural_context: RESCORE_CONTEXT_CHARS,
             correction_cache: std::cell::RefCell::new(None),
             span_cache: std::cell::RefCell::new(sentence::SpanCache::default()),
