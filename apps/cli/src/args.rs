@@ -98,6 +98,17 @@ pub struct Args {
     #[arg(long)]
     pub neural: Option<PathBuf>,
 
+    /// 独立知微模型，为词与整句增加语境分；必须同时提供基础模型
+    #[arg(long, requires = "neural")]
+    pub context_model: Option<PathBuf>,
+
+    /// 语境对照评测 JSONL（keys、before），结果写到 --context-output；不提交、不学习
+    #[arg(long, requires = "context_output", conflicts_with_all = ["predict", "inputs", "replay", "eval_text"])]
+    pub eval_context: Option<PathBuf>,
+
+    #[arg(long, requires = "eval_context")]
+    pub context_output: Option<PathBuf>,
+
     /// 神经重打分的权重 λ（0 到 1，缺省 0.5）：最终分 = 路径分 + λ·(神经分 − 静态二元分)，个人学习与代价不受影响
     #[arg(long)]
     pub neural_weight: Option<f64>,

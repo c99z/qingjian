@@ -56,6 +56,7 @@ impl Engine {
     /// 异步结果与查询缓存不跨上下文复用，用户词频和词库仍是进程内唯一实例。
     pub fn swap_session(&mut self, session: &mut EngineSession) {
         self.cancel_prediction();
+        self.invalidate_context();
         self.set_rescoring_context(None);
         std::mem::swap(&mut self.composition, &mut session.composition);
         std::mem::swap(&mut self.english_mode, &mut session.english_mode);
@@ -79,6 +80,7 @@ impl Engine {
         );
         std::mem::swap(&mut self.displayed, &mut session.displayed);
         std::mem::swap(&mut self.history, &mut session.history);
+        self.history.clear();
         std::mem::swap(&mut self.chain, &mut session.chain);
         self.forget_span_cache();
         *self.correction_cache.borrow_mut() = None;
@@ -110,6 +112,7 @@ impl Engine {
     /// 在组句第一帧后报告隐私状态时意外清掉新输入。
     pub fn discard_input(&mut self) {
         self.cancel_prediction();
+        self.invalidate_context();
         self.composition.clear();
         self.english_mode = false;
         self.punctuation = Punctuation::default();

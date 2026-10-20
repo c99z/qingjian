@@ -76,6 +76,8 @@ pub struct Router {
     /// 模型加载失败 / 缺失的原因，`Status` 报给设置程序。
     model_error: Option<String>,
 
+    context_model_error: Option<String>,
+
     /// 重排的防抖 / 轮询进行态。
     rescore: RescoreState,
 
@@ -105,6 +107,7 @@ impl Router {
             model_loader: None,
             model_generation: 0,
             model_error: None,
+            context_model_error: None,
             rescore: RescoreState::default(),
             reload: None,
             cloud: cloud::CloudState::default(),

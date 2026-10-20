@@ -63,7 +63,9 @@ pub use vocabulary::{
     FRESH_UNTIL, LevelCount, NoVocabularyTracker, VocabularySummary, VocabularyTracker,
 };
 
-use crate::candidate::{Candidate, CandidateKind, Language};
+use crate::candidate::Language;
+#[cfg(test)]
+use crate::candidate::{Candidate, CandidateKind};
 use crate::composition::Composition;
 use crate::correction::{Correction, TypoCosts};
 use crate::emoji::EmojiTable;
@@ -71,10 +73,7 @@ use crate::fuzzy::FuzzyRules;
 use crate::history::InputHistory;
 use crate::parser::{self, ParseError, Segmentation};
 use crate::punctuation::Punctuation;
-use crate::ranking::Scored;
-use crate::sentence::{
-    self, Interpolation, LanguageModel, NoLanguageModel, Personal, SentenceScorer,
-};
+use crate::sentence::{self, Interpolation, LanguageModel, NoLanguageModel, SentenceScorer};
 use crate::shuangpin::Scheme;
 
 use commit::CommitChain;
@@ -142,6 +141,8 @@ pub struct Engine {
 
     /// 「前文 + 整句文本 → 神经分」缓存，同步与异步打分共用。
     neural_cache: std::cell::RefCell<rescoring::NeuralCache>,
+
+    context_ranking: std::cell::RefCell<rescoring::ContextRanking>,
 
     /// 壳给的应用里光标前的文本；`None` 时前文用本会话历史。
     rescoring_before: Option<String>,
@@ -410,6 +411,7 @@ impl Engine {
             sentence_scorer: None,
             rescorer: None,
             neural_cache: std::cell::RefCell::new(rescoring::NeuralCache::default()),
+            context_ranking: std::cell::RefCell::default(),
             rescoring_before: None,
             neural_weight: NEURAL_WEIGHT,
             neural_margin: NEURAL_MARGIN,

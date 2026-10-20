@@ -59,6 +59,7 @@ impl Engine {
     /// 壳告知光标离开了刚才上屏的位置（切换应用、点了别处、停用输入法）：之后上屏的词按句首记。
     /// 上次断开之后有过上屏才往输入日志记一条 `break`，连着失焦几次只记一次。
     pub fn break_chain(&mut self) {
+        self.invalidate_context();
         self.chain.reset();
         self.recent_commits.clear();
         self.flush_passthrough();
@@ -124,6 +125,7 @@ impl Engine {
 
     /// 组句里要删东西了：第一次删之前把缓冲区留个快照，上屏时对比最终键串，不同就是一次重打（`retype`）。
     fn note_edit(&mut self) {
+        self.context_ranking.get_mut().invalidate();
         if self.retype_snapshot.is_none() && !self.composition.is_empty() {
             self.retype_snapshot = Some(self.composition.text().to_owned());
         }
@@ -133,6 +135,7 @@ impl Engine {
     /// 接着重打那段拼音选了别的词，那次记的学习就退回去（见 [`Self::apply_retraction`]）。
     /// 删得比记着的几次上屏加起来还多说明在改别处，全忘掉。
     pub fn note_backspace(&mut self) {
+        self.invalidate_context();
         let Some(commit) = self
             .recent_commits
             .iter_mut()
@@ -166,6 +169,7 @@ impl Engine {
     }
 
     pub fn push(&mut self, c: char) {
+        self.context_ranking.get_mut().invalidate();
         if self.composition.is_empty() {
             // 新一段组句：从这一键起算耗时、翻页与重打
             self.composition_started = Some(Instant::now());
@@ -203,6 +207,7 @@ impl Engine {
     }
 
     pub fn clear(&mut self) {
+        self.context_ranking.get_mut().invalidate();
         self.composition.clear();
         self.aux_code = None;
         self.chain.leave_buffer();
@@ -234,6 +239,7 @@ impl Engine {
 
     /// 光标向左跳过一个音节，遇 `'` 连它一起跳过。光标在开头时返回 `false`。
     pub fn move_cursor_syllable_left(&mut self) -> bool {
+        self.context_ranking.get_mut().invalidate();
         let cursor = self.composition.cursor();
         let before = &self.composition.text()[..cursor];
         let plain =
@@ -244,6 +250,7 @@ impl Engine {
 
     /// 光标向右跳过一个音节，遇 `'` 连它一起跳过。光标在末尾时返回 `false`。
     pub fn move_cursor_syllable_right(&mut self) -> bool {
+        self.context_ranking.get_mut().invalidate();
         let cursor = self.composition.cursor();
         let after = &self.composition.text()[cursor..];
         let plain =
@@ -260,18 +267,22 @@ impl Engine {
     }
 
     pub fn move_cursor_left(&mut self) -> bool {
+        self.context_ranking.get_mut().invalidate();
         self.composition.move_left()
     }
 
     pub fn move_cursor_right(&mut self) -> bool {
+        self.context_ranking.get_mut().invalidate();
         self.composition.move_right()
     }
 
     pub fn move_cursor_home(&mut self) {
+        self.context_ranking.get_mut().invalidate();
         self.composition.move_home();
     }
 
     pub fn move_cursor_end(&mut self) {
+        self.context_ranking.get_mut().invalidate();
         self.composition.move_end();
     }
 

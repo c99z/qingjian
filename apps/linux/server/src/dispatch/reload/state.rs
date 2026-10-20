@@ -51,6 +51,8 @@ pub(crate) struct ConfigReload {
     /// 已应用的 `[model] enabled`。
     pub(crate) applied_model: bool,
 
+    pub(crate) applied_context: bool,
+
     /// 已应用的 `[general] input_log`。
     pub(crate) applied_input_log: bool,
 
@@ -74,6 +76,7 @@ impl ConfigReload {
             applied_language: super::learning_language(config),
             applied_dictionaries: config.dictionaries.clone(),
             applied_model: config.model.enabled,
+            applied_context: config.model.context_ranking,
             applied_input_log: config.general.input_log,
             pending: None,
             generation: 0,

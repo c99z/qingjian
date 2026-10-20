@@ -415,3 +415,15 @@ P5 已接统计页与服务协调的日志清空：`adapters/statistics` 优先�
 
 独立产品 `qingjian-account-server` 无 GTK、Fcitx5 或 Engine 装配，Axum 提供 `/health`、`/v1/register`、`/v1/login`、`/v1/logout` 和 GET/PUT `/v1/snapshot`。SQLite WAL 存账号、会话与每账号一个最新快照；Argon2id 密码哈希、SHA256 会话 token 哈希、30 天有效期、5 次错误登录锁定 1 分钟。上传以事务比较 `expected_revision`，过期版本返回 409；默认注册关闭，仅 `QINGJIAN_REGISTRATION=open` 打开。
 默认监听 `127.0.0.1:9080`，`QINGJIAN_ACCOUNT_DB` 指定私有数据库，`RUST_LOG` 调日志级别；子命令 `healthcheck`（容器健康检查）与 `backup <目标>`（`VACUUM INTO` 运行中备份）。HTTP 正文限制 96 MiB + 1024 字节，并发请求最多 8 个，超出 503，`/health` 不计入。Argon2 校验在库锁外做，不存在的用户名也校验一次随机哈希。Docker 部署文件在 `docker/`（Dockerfile、compose + Caddy、`package.sh` 离线包）。服务端验证归档与凭据排除，客户端恢复前进一步验证词库。操作是手动整份快照替换，不做自动合并；部署与尚未提供功能见 [账号服务](account-service.md)。
+
+
+### 实验性最近输入语境排序（2026-10-21）
+
+- Linux `[model] context_ranking` 默认 false，GTK 本地模型页可编辑，管理状态新增可选 `context_model`，旧管理响应缺失时显示未提供状态。未变更 Linux 输入协议。
+- `qingjian-neural::ContextScorer` 包装通变基础评分器与独立知微；返回每字 `(conditional - empty)` 增益，空前文为零；未知候选字或超长候选整批放弃。缓存最多 256 条空前文分，基础模型与语境模型的分数不混用。
+- Core `engine/rescoring/context.rs` 每轮最多 12 条，词级同覆盖/同读音/同结构前六项，整句前六条；均值居中后以 0.5 权重、±3 限幅融合（最终 ±1.5），首选替换分差至少 0.3。整句的语境分在跨读音增益保护之前加入。
+- 语境状态独立于个人学习；不写学习数据。失焦、未知编辑、退格删除上屏文本、会话交换及私密边界清历史。明确空前文不回退历史；仅改当前拼音仍保留已确认前文。最近历史窗口沿用 64 字。
+- 后台输入和输出各保留一份最新任务/结果；任务带递增代次，拒收 A→B→A 及失效后的迟到结果。语境与基础结果一起发布，Linux 开启语境时同一轮只刷新一次，导航仍冻结候选。
+- CLI `--context-model <知微.qjm>` 需同时 `--neural <通变.qjm>`；`--eval-context <JSONL> --context-output <新JSONL>` 读取 `keys/before`，输出 `first/final/first_ms/stable_ms`。使用 `--neural-async` 才能分开观测首帧与后台完成。此入口不提交、不学习；输出拒绝覆盖。
+- `context_probe` 示例比较同一候选池的条件分、空前文分与增益，不能用它代替实际引擎验收。新增真实模型测试验证增益与原始概率相符，不把假评分器测试作为语义证据。
+- 本阶段尚未接 Fcitx 周围文本或后文概率，未提供无效的“应用前后文”开关。部署门槛与实际结果见本机 `~/plan/qingjian-context-ranking-report-20261021.md`；未过门槛保持关闭。

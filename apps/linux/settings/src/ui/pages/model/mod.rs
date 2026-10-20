@@ -1,14 +1,17 @@
 //! 本地模型页：`[model] enabled` 开关（走草稿），以及从管理 socket 读到的实际加载状态。
 //! 状态查询在后台线程做，结果回主线程更新；服务没跑就如实显示「服务未运行」。
 
-use adw::prelude::*;
-use gtk::glib;
+mod status_rows;
+
+use adw::prelude::{
+    ButtonExt, PreferencesGroupExt, PreferencesPageExt, PreferencesRowExt, WidgetExt,
+};
 use qingjian_platform::Config;
-use qingjian_platform::protocol::linux_admin::ModelStatus;
+use status_rows::StatusRows;
 
-use crate::adapters::admin::AdminError;
-
-use super::{PageContext, SettingsPage, SyncGuard, clear_row_error, mark_row_error, switch_row};
+use crate::ui::pages::{
+    PageContext, SettingsPage, SyncGuard, clear_row_error, mark_row_error, switch_row,
+};
 
 pub struct ModelPage {
     page: adw::PreferencesPage,
@@ -18,6 +21,10 @@ pub struct ModelPage {
     syncing: SyncGuard,
 
     enabled: adw::SwitchRow,
+
+    context_ranking: adw::SwitchRow,
+
+    context_model: adw::ActionRow,
 
     /// 服务状态（运行中 / 未运行 / 查询失败）。
     service: adw::ActionRow,
@@ -50,6 +57,16 @@ impl ModelPage {
             &syncing,
         );
         toggle.add(&enabled);
+        let ctx_context = ctx.clone();
+        let context_ranking = switch_row(
+            "结合最近输入优化候选（实验性）",
+            "使用本机知微模型；默认关闭，失焦或删除后重新积累前文",
+            move |on| ctx_context.set("model", "context_ranking", on),
+            &syncing,
+        );
+        let context_sensitive = context_ranking.clone();
+        enabled.connect_active_notify(move |row| context_sensitive.set_sensitive(row.is_active()));
+        toggle.add(&context_ranking);
         page.add(&toggle);
 
         let status = adw::PreferencesGroup::new();
@@ -68,8 +85,11 @@ impl ModelPage {
         config.set_title("配置");
         status.add(&config);
         let model = adw::ActionRow::new();
-        model.set_title("模型");
+        model.set_title("基础模型");
         status.add(&model);
+        let context_model = adw::ActionRow::new();
+        context_model.set_title("语境模型");
+        status.add(&context_model);
         let failure = adw::ActionRow::new();
         failure.set_title("失败原因");
         failure.set_visible(false);
@@ -81,6 +101,8 @@ impl ModelPage {
             ctx: ctx.clone(),
             syncing,
             enabled,
+            context_ranking,
+            context_model,
             service,
             config,
             model,
@@ -101,6 +123,7 @@ impl ModelPage {
             service: self.service.clone(),
             config: self.config.clone(),
             model: self.model.clone(),
+            context_model: self.context_model.clone(),
             failure: self.failure.clone(),
             admin: self.ctx.admin.clone(),
         }
@@ -108,69 +131,6 @@ impl ModelPage {
 
     fn query_status(&self) {
         self.handle().query_status();
-    }
-}
-
-/// 状态查询要动的几行；查询在后台线程做，完成后回主线程更新。
-#[derive(Clone)]
-struct StatusRows {
-    service: adw::ActionRow,
-
-    config: adw::ActionRow,
-
-    model: adw::ActionRow,
-
-    failure: adw::ActionRow,
-
-    admin: std::sync::Arc<crate::adapters::admin::AdminClient>,
-}
-
-impl StatusRows {
-    fn query_status(&self) {
-        self.service.set_subtitle("查询中…");
-        self.config.set_subtitle("");
-        self.model.set_subtitle("");
-        self.failure.set_visible(false);
-        let rows = self.clone();
-        glib::MainContext::default().spawn_local(async move {
-            let result = gtk::gio::spawn_blocking(move || rows.admin.status()).await;
-            match result {
-                Ok(Ok(report)) => {
-                    rows.service
-                        .set_subtitle(&format!("运行中（版本 {}）", report.version));
-                    let mut config = format!("代次 {}", report.config.generation);
-                    if report.config.pending {
-                        config.push_str("，有修改等当前输入结束后生效");
-                    }
-                    if let Some(error) = &report.config.last_error {
-                        config.push_str(&format!("；上次重载出错：{error}"));
-                    }
-                    rows.config.set_subtitle(&config);
-                    match &report.model {
-                        ModelStatus::Disabled => rows.model.set_subtitle("未启用"),
-                        ModelStatus::Loading => rows.model.set_subtitle("后台加载中…"),
-                        ModelStatus::Loaded => rows.model.set_subtitle("已加载"),
-                        ModelStatus::Failed(reason) => {
-                            rows.model.set_subtitle("加载失败");
-                            rows.failure.set_subtitle(reason);
-                            rows.failure.set_visible(true);
-                        }
-                    }
-                }
-                Ok(Err(AdminError::NotRunning)) => {
-                    rows.service.set_subtitle("服务未运行");
-                    rows.config.set_subtitle("—");
-                    rows.model.set_subtitle("—");
-                }
-                Ok(Err(error)) => {
-                    rows.service
-                        .set_subtitle(&format!("查询失败：{}", error.user_message()));
-                    rows.config.set_subtitle("—");
-                    rows.model.set_subtitle("—");
-                }
-                Err(_) => rows.service.set_subtitle("查询失败：后台任务中断"),
-            }
-        });
     }
 }
 
@@ -186,18 +146,24 @@ impl SettingsPage for ModelPage {
     fn refresh(&self, config: &Config) {
         self.syncing.set(true);
         self.enabled.set_active(config.model.enabled);
+        self.context_ranking
+            .set_active(config.model.context_ranking);
+        self.context_ranking.set_sensitive(config.model.enabled);
         self.syncing.set(false);
     }
 
     fn clear_errors(&self) {
         clear_row_error(&self.enabled);
+        clear_row_error(&self.context_ranking);
     }
 
     fn mark_error(&self, field: &str, message: &str) -> bool {
-        if field != "model.enabled" {
-            return false;
-        }
-        mark_row_error(&self.enabled, message);
+        let row = match field {
+            "model.enabled" => &self.enabled,
+            "model.context_ranking" => &self.context_ranking,
+            _ => return false,
+        };
+        mark_row_error(row, message);
         true
     }
 }

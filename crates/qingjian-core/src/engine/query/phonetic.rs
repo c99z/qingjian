@@ -158,7 +158,7 @@ impl Engine {
         // `ba` 在「做了」后面出 吧、句首出 把
         let log_total = (self.total_frequency() as f64).max(1.0).ln();
         let letters = choice_key(scope, scope.len());
-        ranking::rank(&mut scored, MAX_CANDIDATES, |item| {
+        let context_score = |item: &Scored<'_>| {
             let hit = &item.hit;
             // 纠错生效时覆盖的是纠正后的字母，换算回原串再查「这个输入串下选过什么」
             let covered = correction
@@ -178,7 +178,9 @@ impl Engine {
                 self.learner.recent_choice_weight(input, hit.text)
             });
             (choice, log_prob + ranking::RECENT_CHOICE_BONUS * recent)
-        });
+        };
+        ranking::rank(&mut scored, MAX_CANDIDATES, context_score);
+        self.rescore_words(&mut scored, context_score);
         // 辅码态：词库候选按码段**反向**过滤（逐个问「有没有以码段开头的码」），无码词直接隐藏；
         // 命中的按「完全匹配码 > 码长降序 > 原词频序」重排（stable sort 保住 rank 排好的原序）。
         // 码段为空（刚敲下触发键）时不过滤，候选与纯拼音态一模一样。

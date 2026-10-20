@@ -41,6 +41,19 @@ impl Router {
                 last_error,
             },
             model: self.model_status(),
+            context_model: Some(if !self.engine.context_ranking_enabled() {
+                ModelStatus::Disabled
+            } else if self.model_loader.is_some() {
+                ModelStatus::Loading
+            } else if self.engine.has_context_scorer() {
+                ModelStatus::Loaded
+            } else {
+                ModelStatus::Failed(
+                    self.context_model_error
+                        .clone()
+                        .unwrap_or_else(|| "语境模型不可用，使用基础排序".to_owned()),
+                )
+            }),
             cloud: self.cloud.status.clone(),
         }
     }

@@ -1,5 +1,8 @@
 //! 本地整句模型：停顿后重排换首选、动过高亮不换、模型在组句中途接上也补这一轮；
 //! 插件定时 Poll 回的帧内容没变时展示身份不变，重排换了顺序才推进。
+#[path = "support/context_rescoring.rs"]
+mod context_rescoring;
+
 use std::time::{Duration, Instant};
 
 use qingjian_core::Engine;

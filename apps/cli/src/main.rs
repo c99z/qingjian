@@ -5,6 +5,7 @@
 
 mod args;
 mod cold;
+mod context_eval;
 mod display;
 mod error;
 mod eval;
@@ -46,6 +47,14 @@ fn run() -> Result<(), CliError> {
     tracing::info!(total_ms = started.elapsed().as_millis(), "Engine 就绪");
     engine.set_english_mode(args.english_mode);
     tuning::apply(&mut engine, &args.tune)?;
+    if let Some(input) = &args.eval_context {
+        context_eval::run(
+            &mut engine,
+            input,
+            args.context_output.as_deref().expect("clap required"),
+        )?;
+        return Ok(());
+    }
     if let Some(input) = &args.eval_cold {
         cold::run(
             &mut engine,
@@ -235,6 +244,14 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
             Box::new(qingjian_neural::P2cScorer(scorer))
         } else {
             Box::new(scorer)
+        };
+        let scorer = if let Some(path) = &args.context_model {
+            let context = qingjian_neural::CharScorer::load(path)?;
+            engine.set_context_ranking(true);
+            Box::new(qingjian_neural::ContextScorer::new(scorer, context)?)
+                as Box<dyn qingjian_core::sentence::SentenceScorer>
+        } else {
+            scorer
         };
         tracing::info!(
             load_ms = started.elapsed().as_millis(),

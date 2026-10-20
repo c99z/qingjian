@@ -7,9 +7,15 @@
 //! 按键回调永远不等模型：先按词级模型出候选，模型的意见晚几十毫秒到。
 
 mod cache;
+mod context;
 mod readings;
+mod words;
 mod worker;
 
+#[cfg(test)]
+mod context_paths_tests;
+#[cfg(test)]
+mod context_tests;
 #[cfg(test)]
 mod tests;
 
@@ -17,6 +23,7 @@ use super::{Engine, take_last_chars};
 use crate::sentence::Conversion;
 
 pub(crate) use cache::NeuralCache;
+pub(crate) use context::ContextRanking;
 pub(crate) use worker::RescoreWorker;
 
 /// 直接生成整句时的 beam 宽度。5 是 2026-09-24 在冻结集上量的：beam 5 首选 51.9%、前五 73.5%，
@@ -30,6 +37,46 @@ const GENERATE_MAX_CHARS: usize = 32;
 const GENERATED_CANDIDATES: usize = 2;
 
 impl Engine {
+    /// 实验性语境排序，默认关闭；只有提供独立语境评分的模型才参与。
+    pub fn set_context_ranking(&mut self, enabled: bool) {
+        let state = self.context_ranking.get_mut();
+        if state.enabled != enabled {
+            state.enabled = enabled;
+            state.invalidate();
+        }
+    }
+
+    pub fn context_ranking_enabled(&self) -> bool {
+        self.context_ranking.borrow().enabled
+    }
+
+    pub fn has_context_scorer(&self) -> bool {
+        self.sentence_scorer
+            .as_ref()
+            .is_some_and(|s| s.supports_context())
+            || self
+                .rescorer
+                .as_ref()
+                .is_some_and(|w| w.context_available && w.is_alive())
+    }
+
+    /// 外部编辑无法定位、失焦或敏感边界时，清除推理前文及在飞结果。
+    pub fn invalidate_context(&mut self) {
+        if let Some(worker) = &self.rescorer {
+            worker.cancel_pending();
+        }
+        self.history.clear();
+        self.rescoring_before = None;
+        self.context_ranking.get_mut().invalidate();
+        *self.neural_cache.get_mut() = NeuralCache::default();
+    }
+
+    pub(super) fn prepare_context_ranking(&self) {
+        self.context_ranking
+            .borrow_mut()
+            .prepare(self.rescoring_context(), self.composition.scope());
+    }
+
     /// 接了重打分器（同步或异步）。
     pub fn has_sentence_scorer(&self) -> bool {
         self.sentence_scorer.is_some()
@@ -39,7 +86,7 @@ impl Engine {
     /// 给模型看的前文：壳给了应用里的光标前文就用它（[`Self::set_rescoring_context`]），
     /// 否则用本会话最近上屏的字符；长度按 `neural_context` 截。
     pub(super) fn rescoring_context(&self) -> String {
-        if self.neural_context == 0 {
+        if self.neural_context == 0 || self.private {
             return String::new();
         }
         match &self.rescoring_before {
@@ -50,6 +97,9 @@ impl Engine {
 
     /// 壳告知应用里光标前的文本（每次查询前给；应用给不出就 `None`，退回本会话历史）。
     pub fn set_rescoring_context(&mut self, before: Option<String>) {
+        if self.rescoring_before != before {
+            self.context_ranking.get_mut().invalidate();
+        }
         self.rescoring_before = before;
     }
 
@@ -62,6 +112,11 @@ impl Engine {
             return;
         }
         let context = self.rescoring_context();
+        if self.has_context_scorer() && keys == self.composition.scope() {
+            self.context_ranking
+                .borrow_mut()
+                .collect(paths.iter().take(6).map(|p| p.text.as_str()));
+        }
         let mut cache = self.neural_cache.borrow_mut();
         cache.ensure_condition(&context, keys);
         let mut missing: Vec<String> = Vec::new();
@@ -95,11 +150,28 @@ impl Engine {
         // （拼写纠错的原样 vs 纠正、混输的头段 vs 整段），那两处的门槛都是按静态尺度定的：
         // `woxiangxuexirust` 就是这么被「纠正」成 我想学习如斯 的。
         let lambda = self.neural_weight;
-        let rescored = |path: &Conversion| {
+        let semantic = self.context_ranking.borrow();
+        let base = |path: &Conversion| {
             let neural = cache.get(&path.text).expect("filled above");
             path.score + lambda * (neural - path.static_score)
         };
-        let reading_offsets = if self.has_typo_paths(paths, keys) {
+        let typo = self.has_typo_paths(paths, keys);
+        let base_offsets = if typo {
+            readings::offsets(paths, base)
+        } else {
+            Default::default()
+        };
+        let baseline = paths
+            .iter()
+            .min_by(|a, b| {
+                let score = |p: &Conversion| {
+                    base(p) + base_offsets.get(&p.syllables).copied().unwrap_or(0.0)
+                };
+                score(b).total_cmp(&score(a))
+            })
+            .map(|p| p.text.clone());
+        let rescored = |path: &Conversion| base(path) + semantic.bonus(&path.text);
+        let reading_offsets = if typo {
             readings::offsets(paths, rescored)
         } else {
             Default::default()
@@ -112,6 +184,15 @@ impl Engine {
                 .partial_cmp(&score(a))
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
+        if semantic.has_gains()
+            && let Some(index) = paths
+                .iter()
+                .position(|p| Some(&p.text) == baseline.as_ref())
+            && index > 0
+            && score(&paths[0]) - score(&paths[index]) < 0.3
+        {
+            paths[..=index].rotate_right(1);
+        }
         self.last_rescored.set(true);
     }
 
@@ -151,7 +232,9 @@ impl Engine {
     pub fn rescoring_pending(&self) -> bool {
         self.rescorer.is_some() && {
             let cache = self.neural_cache.borrow();
-            cache.has_wanted() || cache.wanted_generation().is_some()
+            cache.has_wanted()
+                || cache.wanted_generation().is_some()
+                || self.context_ranking.borrow().pending()
         }
     }
 
@@ -163,7 +246,8 @@ impl Engine {
         let mut cache = self.neural_cache.borrow_mut();
         let wanted = cache.take_wanted();
         let generate = cache.take_wanted_generation();
-        if wanted.is_empty() && generate.is_none() {
+        let semantic = self.context_ranking.get_mut().take();
+        if wanted.is_empty() && generate.is_none() && semantic.is_empty() {
             return false;
         }
         tracing::debug!(
@@ -172,10 +256,16 @@ impl Engine {
             "神经请求"
         );
         worker.submit(
-            cache.context().to_owned(),
+            self.context_ranking.borrow().epoch,
+            if semantic.is_empty() {
+                cache.context().to_owned()
+            } else {
+                self.rescoring_context()
+            },
             cache.keys().to_owned(),
             wanted,
             generate,
+            semantic,
         );
         true
     }
@@ -187,6 +277,13 @@ impl Engine {
         };
         let mut updated = false;
         while let Some(scored) = worker.poll() {
+            if scored.epoch != self.context_ranking.borrow().epoch {
+                continue;
+            }
+            self.context_ranking
+                .get_mut()
+                .accept(&scored.semantic, &scored.gains);
+            updated |= !scored.semantic.is_empty();
             let mut cache = self.neural_cache.borrow_mut();
             // 生成的结果自带按键、与前文无关，不跟着打分那边的条件一起作废
             if let Some((keys, texts)) = scored.generated {

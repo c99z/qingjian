@@ -1,8 +1,20 @@
 //! 注入与开关：词库、模糊音、双拼、翻译 / 学习 / 联想等 trait 实现的挂接，以及相应的只读访问。
 
 use super::aux_code::is_valid_aux_code_key;
-use super::*;
+use super::{
+    DEFAULT_AUX_CODE_KEY, Engine, NEURAL_MARGIN, NEURAL_WEIGHT, RESCORE_CONTEXT_CHARS, marked_rest,
+};
+use crate::correction::TypoCosts;
 use crate::engine::decoded::EngineDecoded;
+use crate::engine::{
+    GlossFiller, InputLogger, Learner, ModeKeys, Predictor, Translator, UsageMeter, UsageSummary,
+    VocabularyTracker,
+};
+use crate::sentence::{Interpolation, LanguageModel, Personal, SentenceScorer};
+use crate::shuangpin::Scheme;
+use crate::{EmojiTable, FuzzyRules, InputHistory, Language};
+use qingjian_dictionary::{AuxCodeLookup, CodeTable, Dictionary, WordList};
+use std::sync::Arc;
 
 impl Engine {
     /// 设置中文模式的标点转换。
@@ -286,6 +298,7 @@ impl Engine {
 
     /// 运行时换 / 卸异步重打分器（壳里模型在后台加载完才接上，配置关掉就卸）。
     pub fn set_async_sentence_scorer(&mut self, scorer: Option<Box<dyn SentenceScorer>>) {
+        self.context_ranking.get_mut().invalidate();
         self.sentence_scorer = None;
         self.rescorer = scorer.map(super::rescoring::RescoreWorker::spawn);
         *self.neural_cache.borrow_mut() = super::rescoring::NeuralCache::default();

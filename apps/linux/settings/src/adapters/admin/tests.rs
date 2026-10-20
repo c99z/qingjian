@@ -47,6 +47,7 @@ fn serve_once(
 fn status_roundtrips_over_a_real_socket() {
     let path = temp_socket("status.sock");
     let report = StatusReport {
+        context_model: None,
         version: "0.1.5-dev".to_owned(),
         protocol: LINUX_ADMIN_PROTOCOL,
         config: ConfigStatus {

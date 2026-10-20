@@ -225,16 +225,25 @@ impl Router {
             reload.applied_dictionaries = config.dictionaries.clone();
         }
 
-        let model_toggle = self
-            .reload
-            .as_ref()
-            .map(|reload| (reload.applied_model, config.model.enabled));
-        if let Some((applied, enabled)) = model_toggle
-            && applied != enabled
+        let model_toggle = self.reload.as_ref().map(|reload| {
+            (
+                reload.applied_model,
+                reload.applied_context,
+                config.model.enabled,
+            )
+        });
+        if let Some((applied, context, enabled)) = model_toggle
+            && (applied != enabled || context != config.model.context_ranking)
         {
             if let Some(reload) = &mut self.reload {
                 reload.applied_model = enabled;
+                reload.applied_context = config.model.context_ranking;
             }
+            self.model_loader = None;
+            self.engine.set_async_sentence_scorer(None);
+            self.engine
+                .set_context_ranking(enabled && config.model.context_ranking);
+            self.context_model_error = None;
             if enabled {
                 self.model_error = None;
                 self.load_local_model();
@@ -277,6 +286,10 @@ impl Router {
         if let Some(reload) = &mut self.reload {
             reload.generation += 1;
             reload.last_error = None;
+            // 模型修改已替换 loader；未修改时旧 loader 仍适用。两种情况都属于本次应用后的代次。
+            if self.model_loader.is_some() {
+                self.model_generation = reload.generation;
+            }
         }
     }
 }

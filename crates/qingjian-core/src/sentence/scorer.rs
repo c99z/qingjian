@@ -1,6 +1,16 @@
 /// 整句路径的第二打分来源：给 Viterbi 出的前几条路径再打一次分，与路径本身的得分对数线性插值。
 /// Core 只认这个 trait，实现在 `qingjian-neural`。
 pub trait SentenceScorer: Send {
+    /// 是否提供独立的语境增益；旧评分器保持原行为。
+    fn supports_context(&self) -> bool {
+        false
+    }
+
+    /// 返回独立于基础分的每字语境增益；失败返回空数组，Core 决定限幅与融合。
+    fn context_gain(&self, _before: &str, _texts: &[&str]) -> Vec<f64> {
+        Vec::new()
+    }
+
     /// 每条 `texts` 的 log 概率，与 `texts` 一一对应。算不了（模型出错）返回空 Vec，调用方就当没有这个打分。
     ///
     /// 两个条件都给，实现按自己训练时的条件挑用、忽略另一个：

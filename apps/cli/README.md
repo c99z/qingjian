@@ -77,3 +77,18 @@ cargo run --release -p qingjian-cli -- --replay ~/Library/Application\ Support/Q
 ## 日志
 
 终端里日志走 stderr，`RUST_LOG=debug` 看逐键细节；设置 `QINGJIAN_LOG_DIR` 时再按天写文件。
+
+
+## 最近输入语境实验
+
+同时提供两个本地模型，对 JSONL 中的 `keys` 和 `before` 逐条评分，不提交、不学习。测试使用独立配置与学习文件副本：
+
+```bash
+cargo run --release -p qingjian-cli -- \
+  --config /tmp/isolated-config.toml \
+  --neural data/models/hanzhang-tongbian/hanzhang-tongbian-small.qjm \
+  --context-model data/models/hanzhang-zhiwei/hanzhang-zhiwei-small.qjm \
+  --neural-async --eval-context cases.jsonl --context-output results.jsonl
+```
+
+每行例如 `{"keys":"zai","before":"明天","acceptable":["再"]}`。输出保存首帧、稳定帧和耗时；文件已存在时拒绝覆盖。去掉 `--context-model` 运行基础对照。CLI 等待不包含 Linux 的 80 毫秒防抖或界面绘制，不能直接当作端到端延迟。

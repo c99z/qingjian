@@ -2,13 +2,18 @@
 
 use std::time::{Duration, Instant};
 
-use adw::prelude::*;
+use adw::prelude::{
+    ActionRowExt, ApplicationExt, ButtonExt, Cast, CheckButtonExt, EditableExt, GtkApplicationExt,
+    GtkWindowExt, PreferencesRowExt, WidgetExt,
+};
 use gtk::gio;
 #[path = "support/gui.rs"]
 mod support;
 use qingjian_linux_settings::state::DraftStore;
 use qingjian_linux_settings::ui::window;
 use support::{capture, descendants, pump, wait_for};
+#[path = "support/context_model.rs"]
+mod context_model;
 #[path = "support/input_style.rs"]
 mod input_style;
 #[path = "support/layout.rs"]
@@ -91,6 +96,7 @@ fn native_window_edits_reverts_saves_and_renders() {
                 == ["ctrl+alt+space"]
     });
     input_style::verify(&window, &stack, &widgets, &path);
+    context_model::verify(&window, &stack, &widgets, &path);
     let sidebar = widgets
         .iter()
         .filter_map(|w| w.clone().downcast::<gtk::ListBox>().ok())

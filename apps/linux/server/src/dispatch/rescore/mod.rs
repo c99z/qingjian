@@ -48,6 +48,8 @@ impl Router {
         config: &LocalModelConfig,
     ) {
         self.model_path = model_path;
+        self.engine
+            .set_context_ranking(config.enabled && config.context_ranking);
         if config.enabled {
             self.load_local_model();
         } else {
@@ -65,7 +67,7 @@ impl Router {
             self.model_error = Some("没有本地整句模型文件".to_owned());
             return;
         };
-        self.model_loader = ModelLoader::spawn(path);
+        self.model_loader = ModelLoader::spawn(path, self.engine.context_ranking_enabled());
         if self.model_loader.is_some() {
             self.model_generation = self.reload_generation();
         } else {
@@ -86,7 +88,8 @@ impl Router {
                     tracing::info!("旧配置代次的模型加载完成，丢弃");
                 } else {
                     match result {
-                        Ok(scorer) => {
+                        Ok((scorer, context_error)) => {
+                            self.context_model_error = context_error;
                             self.model_error = None;
                             self.attach_sentence_scorer(scorer);
                         }
@@ -201,7 +204,9 @@ impl Router {
         *preedit = query.marked_segments().iter().map(Into::into).collect();
         *cursor = query.marked_cursor();
         // 这次查询可能又记下了一批要打分的（缓存按前文记，前文没变时不会），再来一轮
-        self.schedule_rescoring();
+        if !self.engine.context_ranking_enabled() {
+            self.schedule_rescoring();
+        }
     }
 }
 

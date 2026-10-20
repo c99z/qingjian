@@ -16,6 +16,10 @@ pub struct StatusReport {
 
     pub model: ModelStatus,
 
+    /// 旧服务没有此字段时显示未提供状态。
+    #[serde(default)]
+    pub context_model: Option<ModelStatus>,
+
     /// Ready 表示已装配，并不代表一次网络请求已成功。
     pub cloud: CloudStatus,
 }

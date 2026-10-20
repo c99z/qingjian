@@ -7,6 +7,7 @@
 //! 缺省 CPU；`metal` feature 走 Apple GPU。
 
 mod config;
+mod context_scorer;
 mod core_scorer;
 mod error;
 mod model;
@@ -16,6 +17,7 @@ mod scorer;
 mod vocab;
 
 pub use config::ModelConfig;
+pub use context_scorer::ContextScorer;
 pub use core_scorer::P2cScorer;
 pub use error::NeuralError;
 pub use model::{CharLm, PrefixCache};

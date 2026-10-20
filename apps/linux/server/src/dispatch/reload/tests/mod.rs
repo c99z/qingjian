@@ -61,3 +61,4 @@ fn reload(router: &mut Router) -> ComponentStatus {
 }
 
 mod behavior;
+mod model;

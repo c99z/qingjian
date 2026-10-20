@@ -12,6 +12,7 @@ impl Engine {
         if self.private == private {
             return;
         }
+        self.invalidate_context();
         self.private = private;
         self.learner.set_private(private);
         self.logger.set_muted(private);
