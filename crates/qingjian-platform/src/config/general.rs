@@ -1,4 +1,4 @@
-use qingjian_core::ShuangpinScheme;
+use qingjian_core::{ChineseInputStyle, ShuangpinScheme};
 use serde::{Deserialize, Serialize};
 
 use super::scheme::{Scheme, scheme_label};
@@ -57,6 +57,9 @@ pub struct GeneralConfig {
     /// 中文模式下中英混输时中文候选总排在英文词前面。缺省关：拼音不像话的输入（`hello`）英文词排第一，
     /// 常在中文模式里打英文词的人不受影响；想要中文永远在前的自己打开。
     pub chinese_first: bool,
+
+    /// 中文候选策略：chinese 专注中文 / mixed 中英混输（旧配置缺省）。
+    pub chinese_input_style: ChineseInputStyle,
 
     /// 中文模式下按住 Shift 敲的字母：交给应用（缺省）还是收进组句缓冲区参与匹配。
     /// 收进组句才能打出「C盘」这类混杂词（`Cpan` 与 `cpan` 一样匹配）。
@@ -131,6 +134,7 @@ impl Default for GeneralConfig {
             english_candidates: true,
             traditional: false,
             chinese_first: false,
+            chinese_input_style: ChineseInputStyle::default(),
             shift_letter: ShiftLetter::default(),
             english_mode: true,
             full_width_punctuation: true,
@@ -268,6 +272,20 @@ impl GeneralConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chinese_input_style_preserves_old_configs_and_round_trips() {
+        let old: GeneralConfig = toml::from_str("chinese_first = true\n").unwrap();
+        assert_eq!(old.chinese_input_style, ChineseInputStyle::Mixed);
+        for style in ChineseInputStyle::ALL {
+            let general: GeneralConfig =
+                toml::from_str(&format!("chinese_input_style = {:?}\n", style.key())).unwrap();
+            assert_eq!(general.chinese_input_style, style);
+            let saved = toml::to_string(&general).unwrap();
+            assert_eq!(toml::from_str::<GeneralConfig>(&saved).unwrap(), general);
+        }
+        assert!(toml::from_str::<GeneralConfig>(r#"chinese_input_style = "invalid""#).is_err());
+    }
 
     #[test]
     fn horizontal_grid_is_off_unless_switched_on() {

@@ -57,3 +57,20 @@ pub fn capture(window: &gtk::Window, path: &str) {
         );
     }
 }
+
+/// 账号页仍可访问登录字段。
+pub fn verify_account(window: &gtk::Window) {
+    let account_fields = descendants(&window.clone().upcast());
+    assert!(
+        account_fields
+            .iter()
+            .filter_map(|w| w.clone().downcast::<adw::EntryRow>().ok())
+            .any(|r| r.title() == "账号服务 URL")
+    );
+    assert!(
+        account_fields
+            .iter()
+            .filter_map(|w| w.clone().downcast::<gtk::Button>().ok())
+            .any(|b| b.label().as_deref() == Some("登录"))
+    );
+}

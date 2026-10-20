@@ -68,6 +68,9 @@ impl Engine {
     /// 这种让中文先；超过两个字母的正文英文（cargo / rust）照旧——按词频一刀切会把它们一起挤掉。
     /// 例外只管**没选过**的英文词：用户选过的照旧排第一（选过 OK，下次敲 `ok` 还是 OK 在前）。
     pub(super) fn insert_english(&self, items: &mut Vec<Candidate>, unlikely_pinyin: bool) {
+        if !self.chinese_input_style.mixed() {
+            return;
+        }
         let lists = self.english_lists();
         if lists.is_empty() {
             return;
@@ -157,7 +160,8 @@ impl Engine {
     /// 整段作用域本身就是个英文词（`database`、`agent`）：用户多半在打那个词。
     pub(in crate::engine) fn scope_is_english_word(&self) -> bool {
         let scope = self.composition.scope();
-        !scope.is_empty()
+        self.chinese_input_style.mixed()
+            && !scope.is_empty()
             && self.english_lists().iter().any(|words| {
                 words
                     .get(scope)

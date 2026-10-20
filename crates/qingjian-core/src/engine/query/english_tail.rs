@@ -48,7 +48,8 @@ impl Engine {
     /// 那几条路本来就排第一。
     /// 切出来只说明「可以这么读」，与拼音读法谁排前面看 `competes` 与比分。
     pub(crate) fn split_english_tail(&self, scope: &str) -> Option<EnglishTail> {
-        if self.shuangpin.is_some()
+        if !self.chinese_input_style.mixed()
+            || self.shuangpin.is_some()
             || scope.len() < MIN_ENGLISH_TAIL_HEAD_LETTERS + MIN_ENGLISH_TAIL_LETTERS
             || !scope.bytes().all(|b| b.is_ascii_lowercase())
         {

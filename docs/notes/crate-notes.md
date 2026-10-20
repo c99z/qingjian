@@ -139,6 +139,9 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 量的是重排这层架构的上限代价；2081 句上首选 51.9% / 前五 73.5%，对比重排路径的 42.3% / 45.5%，两条路互补（只有生成对 16.5%、只有重排对 6.9%），
 代价是 `O(生成字数)` 次串行前向。数字与取舍见 [neural-rescoring.md](neural-rescoring.md)。
 
+**中文输入策略**（`Engine::set_chinese_input_style`、`[general] chinese_input_style`）：`mixed` 缺省兼容旧配置，`chinese` 为专注中文。Core 在英文词插入（包括表达式入口）、英文尾段切分与整段英文判断处关掉自动混输；专注中文下英文词不再阻挡拼音纠错，切换策略清空纠错缓存；拼音、简拼、纠错及个人中文排序继续使用。直接生成的结果在 `generated_sentences` 中按当前策略过滤 ASCII / 全角拉丁字母后再取两条，缓存保留完整结果，晚到的异步结果同样过滤。组句云联想的词与整句也过滤；主动问字与翻译不受此项限制。专注中文下原样提交不学成英文词，主动英文模式仍可学习，已有记录不删除。词库、自定义短语与显式直输保留原行为。
+Linux 设置通用页提供枚举选择，专注中文时禁用仅用于混输的 `chinese_first` 行；Linux / Windows 启动及热加载、macOS 配置加载、CLI 均传入 Core。CLI 的 `chinese_first` 同时读取配置，显式 `--chinese-first` 可开启。
+
 **模型直接生成的整句**（`engine/query/generating.rs`，候选类型 `CandidateKind::Generated`）：词图只会把整段按键读成拼音，
 中英混输（`yongdockerbushuhenfangbian`）与生词在它那里根本没有路径，出来的只能是把英文段硬读成拼音的废话（用的哦乘客仍不熟很方便）。
 词图读不通整段时改问 `SentenceScorer::generate`（P2C 走 `P2c::convert`，字级模型返回空），生成的整句插在词图那几条前面。

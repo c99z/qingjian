@@ -28,7 +28,16 @@ pub use response::Prediction;
 pub use script::translation_target;
 pub use surrounding_text::SurroundingText;
 
-use super::*;
+use super::commit::LastCommit;
+use super::input_log::{InputLogEntry, InputLogger, InputSource};
+use super::query;
+use super::{
+    Engine, MIN_PREDICTION_LETTERS, PREDICTION_CANDIDATE_HINTS, is_raw, segment_longest_prefix,
+    take_first_chars, take_last_chars,
+};
+use crate::candidate::Candidate;
+use crate::parser::{self, Segmentation};
+use crate::{sentence, shortcut};
 
 impl Engine {
     /// 是否接了会联想的 Predictor；壳据此决定要不要起轮询定时器、画云朵标识。
@@ -200,6 +209,16 @@ impl Engine {
                         prediction.words.clear();
                     } else {
                         self.validate_cloud_words(&mut prediction.words);
+                    }
+                    prediction
+                        .words
+                        .retain(|word| self.chinese_input_style.allows_generated(&word.text));
+                    if prediction
+                        .sentence
+                        .as_deref()
+                        .is_some_and(|text| !self.chinese_input_style.allows_generated(text))
+                    {
+                        prediction.sentence = None;
                     }
                     if !prediction.is_empty() {
                         // 给过用户什么：紧接着的上屏说明接没接受（本地联想能不能替代云端的尺子）

@@ -9,6 +9,7 @@ mod custom;
 mod emoji;
 mod english;
 mod generating;
+mod input_style;
 mod learning;
 mod lookup;
 mod privacy;

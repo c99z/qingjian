@@ -1,6 +1,11 @@
 //! 拼音以外的几种查询：表达式（`v`）、原样字母、英文模式、问字（`?`）。
 
-use super::*;
+use std::time::{Duration, Instant};
+
+use super::Query;
+use crate::candidate::{Candidate, CandidateKind, CandidateList};
+use crate::engine::{ENGLISH_MODE_CANDIDATES, Engine, Learner, Timings};
+use crate::{english, shortcut};
 
 impl Engine {
     /// 表达式模式（`v` 开头）：不解析拼音，候选是算式结果 / 中文数字，再加上整段是英文词的情况（`very`）。
@@ -12,7 +17,9 @@ impl Engine {
         start: Instant,
     ) -> Query {
         let mut items = shortcut::candidates(scope, self.modes().expression, &jiff::Zoned::now());
-        if let Some(word) = self.english.as_ref().and_then(|english| english.get(scope)) {
+        if self.chinese_input_style.mixed()
+            && let Some(word) = self.english.as_ref().and_then(|english| english.get(scope))
+        {
             items.push(Candidate {
                 text: word.to_owned(),
                 kind: CandidateKind::English,

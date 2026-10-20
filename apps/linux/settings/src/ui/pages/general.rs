@@ -1,7 +1,8 @@
-//! 通用页：每页候选数、输入方案、拼音显示位置、英文候选、中文优先、Shift 字母行为。
+//! 通用页：每页候选数、输入方案、拼音显示位置、英文候选、中文输入策略、中文优先、Shift 字母行为。
 //! 全部落在 `[general]` 分节；选项列表直接由共享配置枚举生成。
 
 use adw::prelude::*;
+use qingjian_core::ChineseInputStyle;
 use qingjian_platform::{Config, PreeditMode, Scheme, ShiftLetter};
 
 use super::{
@@ -22,6 +23,8 @@ pub struct GeneralPage {
     english_candidates: adw::SwitchRow,
 
     chinese_first: adw::SwitchRow,
+
+    chinese_input_style: adw::ComboRow,
 
     shift_letter: adw::ComboRow,
 
@@ -97,6 +100,22 @@ impl GeneralPage {
             move |on| ctx_chinese.set("general", "chinese_first", on),
             &syncing,
         );
+        let style_labels: Vec<&str> = ChineseInputStyle::ALL.iter().map(|s| s.label()).collect();
+        let ctx_style = ctx.clone();
+        let chinese_first_row = chinese_first.clone();
+        let chinese_input_style = combo_row(
+            "中文输入策略",
+            &style_labels,
+            move |index| {
+                let style = ChineseInputStyle::ALL[index as usize];
+                chinese_first_row.set_sensitive(style.mixed());
+                ctx_style.set("general", "chinese_input_style", style.key());
+            },
+            &syncing,
+        );
+        chinese_input_style
+            .set_subtitle("专注中文关闭自动英文候选和拼接；需要英文时可切换到英文模式");
+        candidates.add(&chinese_input_style);
         candidates.add(&chinese_first);
 
         let shift_labels: Vec<&str> = ShiftLetter::ALL.iter().map(|s| s.label()).collect();
@@ -128,6 +147,10 @@ impl GeneralPage {
                 english_candidates.clone().upcast(),
             ),
             ("general.chinese_first", chinese_first.clone().upcast()),
+            (
+                "general.chinese_input_style",
+                chinese_input_style.clone().upcast(),
+            ),
             ("general.shift_letter", shift_letter.clone().upcast()),
         ];
         Self {
@@ -138,6 +161,7 @@ impl GeneralPage {
             preedit,
             english_candidates,
             chinese_first,
+            chinese_input_style,
             shift_letter,
             fields,
         }
@@ -173,6 +197,14 @@ impl SettingsPage for GeneralPage {
         self.english_candidates
             .set_active(general.english_candidates);
         self.chinese_first.set_active(general.chinese_first);
+        self.chinese_first
+            .set_sensitive(general.chinese_input_style.mixed());
+        self.chinese_input_style.set_selected(
+            ChineseInputStyle::ALL
+                .iter()
+                .position(|s| *s == general.chinese_input_style)
+                .unwrap_or_default() as u32,
+        );
         self.shift_letter.set_selected(
             ShiftLetter::ALL
                 .iter()

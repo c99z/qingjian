@@ -1,6 +1,7 @@
 //! 整段拼写纠错：找一处编辑的纠正并按个人敲错表打折。
 
-use super::*;
+use super::{Engine, Learner, MAX_CODE_LENGTH, segment_longest_prefix};
+use crate::correction::{self, Correction};
 
 impl Engine {
     /// 这段作用域生效的拼写纠正（带缓存）：拼音不像话、用户没对它回车原样上屏过、
@@ -29,10 +30,11 @@ impl Engine {
             return None;
         }
         // 整段就是个英文词（hello）：用户多半在打英文，别把它「纠」成 喝了哦
-        if self
-            .english
-            .as_ref()
-            .is_some_and(|english| english.get(scope).is_some())
+        if self.chinese_input_style.mixed()
+            && self
+                .english
+                .as_ref()
+                .is_some_and(|english| english.get(scope).is_some())
         {
             return None;
         }

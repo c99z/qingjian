@@ -13,6 +13,7 @@ mod decoded;
 mod extras;
 mod gloss;
 mod input_log;
+mod input_style;
 mod learning;
 mod marked;
 mod mode_keys;
@@ -30,7 +31,7 @@ mod vocabulary;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use qingjian_dictionary::{AuxCodeLookup, CodeTable, Dictionary, Match, WordList};
 
@@ -43,6 +44,7 @@ pub use input_log::{
     CommitEntry, INPUT_LOG_VERSION, InputLogEntry, InputLogger, InputSource, LOGGED_CANDIDATES,
     NoInputLogger,
 };
+pub use input_style::ChineseInputStyle;
 pub use learning::{Forgotten, Learner, NoLearner};
 pub use marked::{AuxSegment, MarkedKind, MarkedSegment};
 pub use mode_keys::{ModeKeys, QUESTION_PREFIX};
@@ -61,20 +63,18 @@ pub use vocabulary::{
     FRESH_UNTIL, LevelCount, NoVocabularyTracker, VocabularySummary, VocabularyTracker,
 };
 
-use crate::candidate::{Candidate, CandidateKind, CandidateList, Language};
+use crate::candidate::{Candidate, CandidateKind, Language};
 use crate::composition::Composition;
 use crate::correction::{self, Correction, TypoCosts, typo};
 use crate::emoji::EmojiTable;
-use crate::english;
 use crate::fuzzy::{Expanded, FuzzyRules};
 use crate::history::InputHistory;
 use crate::parser::{self, ParseError, Segmentation};
 use crate::punctuation::Punctuation;
 use crate::ranking::Scored;
 use crate::sentence::{
-    self, Conversion, Interpolation, LanguageModel, NoLanguageModel, Personal, SentenceScorer,
+    self, Interpolation, LanguageModel, NoLanguageModel, Personal, SentenceScorer,
 };
-use crate::shortcut;
 use crate::shuangpin::Scheme;
 
 use commit::CommitChain;
@@ -120,6 +120,9 @@ pub struct Engine {
 
     /// 中英混输时中文候选总在英文词前面（缺省关：拼音不像话的输入英文词排第一，常在中文模式里打英文词的人靠它）。
     chinese_first: bool,
+
+    /// 中文输入时是否自动混入英文。
+    chinese_input_style: ChineseInputStyle,
 
     /// 中文模式下 Shift+字母进组句缓冲区（配置 `[general] shift_letter = "compose"`，缺省关）。
     /// 关着由壳直接把大写字母交给应用，Core 这一路就不该收——否则 `Cpan` 这种会被当成拼音。
@@ -397,6 +400,7 @@ impl Engine {
             full_width_punctuation: true,
             custom_phrases: Vec::new(),
             chinese_first: false,
+            chinese_input_style: ChineseInputStyle::default(),
             shift_letter_compose: false,
             predictor: Box::new(NoPredictor),
             language_model: Box::new(NoLanguageModel),

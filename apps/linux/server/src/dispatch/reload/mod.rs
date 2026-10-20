@@ -180,6 +180,8 @@ impl Router {
             .set_shift_letter_compose(config.general.shift_letter.compose());
         self.engine.set_learning(config.general.learning);
         self.engine.set_chinese_first(config.general.chinese_first);
+        self.engine
+            .set_chinese_input_style(config.general.chinese_input_style);
         self.engine.set_mode_keys(config.shortcut.mode);
         if let Err(error) = self
             .engine

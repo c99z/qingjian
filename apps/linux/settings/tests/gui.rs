@@ -9,6 +9,8 @@ mod support;
 use qingjian_linux_settings::state::DraftStore;
 use qingjian_linux_settings::ui::window;
 use support::{capture, descendants, pump, wait_for};
+#[path = "support/input_style.rs"]
+mod input_style;
 #[path = "support/layout.rs"]
 mod layout;
 
@@ -88,6 +90,7 @@ fn native_window_edits_reverts_saves_and_renders() {
                 .config_values()
                 == ["ctrl+alt+space"]
     });
+    input_style::verify(&window, &stack, &widgets, &path);
     let sidebar = widgets
         .iter()
         .filter_map(|w| w.clone().downcast::<gtk::ListBox>().ok())
@@ -183,18 +186,6 @@ fn native_window_edits_reverts_saves_and_renders() {
             );
         }
     }
-    let account_fields = descendants(&window.clone().upcast());
-    assert!(
-        account_fields
-            .iter()
-            .filter_map(|w| w.clone().downcast::<adw::EntryRow>().ok())
-            .any(|r| r.title() == "账号服务 URL")
-    );
-    assert!(
-        account_fields
-            .iter()
-            .filter_map(|w| w.clone().downcast::<gtk::Button>().ok())
-            .any(|b| b.label().as_deref() == Some("登录"))
-    );
+    support::verify_account(&window);
     window.destroy();
 }

@@ -1,4 +1,4 @@
-//! 神经重打分：整句转换的前几条路径交给字级模型（[`SentenceScorer`]）再排一次。
+//! 神经重打分：整句转换的前几条路径交给字级模型（[`crate::sentence::SentenceScorer`]）再排一次。
 //!
 //! 打分有两种接法：同步的（[`Engine::with_sentence_scorer`]，查询里当场打，CLI 评测用）和异步的
 //! （[`Engine::with_async_sentence_scorer`]，后台线程；壳里用）。两种都经过一张「前文 + 文本 → 神经分」的缓存
@@ -12,7 +12,8 @@ mod worker;
 #[cfg(test)]
 mod tests;
 
-use super::*;
+use super::{Engine, take_last_chars};
+use crate::sentence::Conversion;
 
 pub(crate) use cache::NeuralCache;
 pub(crate) use worker::RescoreWorker;
@@ -114,16 +115,25 @@ impl Engine {
         if keys.is_empty() || !self.has_sentence_scorer() {
             return Vec::new();
         }
+        // 先按当前策略过滤，再取候选配额，避免英文占满前两条而漏掉后面的中文结果。
+        let select = |texts: &[String]| {
+            texts
+                .iter()
+                .filter(|text| self.chinese_input_style.allows_generated(text))
+                .take(GENERATED_CANDIDATES)
+                .cloned()
+                .collect()
+        };
         let mut cache = self.neural_cache.borrow_mut();
         if let Some(texts) = cache.generated(keys) {
-            return texts.iter().take(GENERATED_CANDIDATES).cloned().collect();
+            return select(texts);
         }
         let Some(scorer) = &self.sentence_scorer else {
             cache.want_generation(keys);
             return Vec::new();
         };
         let texts = scorer.generate(keys, GENERATE_BEAM, GENERATE_MAX_CHARS);
-        let out = texts.iter().take(GENERATED_CANDIDATES).cloned().collect();
+        let out = select(&texts);
         cache.insert_generated(keys, texts);
         out
     }
