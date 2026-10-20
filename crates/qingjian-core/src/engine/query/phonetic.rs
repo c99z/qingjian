@@ -1,6 +1,20 @@
 //! 拼音侧的候选生成：切分、拼写纠错、词级查找与排序，再补上整句、英文、快捷与 emoji 候选。
 
-use super::*;
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
+
+use qingjian_dictionary::Match;
+
+use crate::candidate::{Candidate, CandidateList};
+use crate::engine::{
+    Engine, Learner, MAX_CANDIDATES, Timings, abbreviated_count, choice_key, pattern_key,
+    segment_longest_prefix,
+};
+use crate::parser::{ParseError, Segmentation};
+use crate::ranking::Scored;
+use crate::{correction, parser, ranking, sentence};
+
+use super::{Query, chinese_candidate, join_marked_typed};
 
 impl Engine {
     /// 拼音侧（全拼 / 双拼 / 注音）的候选生成：整段作用域是一串读音。
@@ -140,7 +154,7 @@ impl Engine {
 
         let start = Instant::now();
         // 再往后翻也翻不到的候选不必再造：单字母简拼能命中两万个词，排完序只留前面这些。
-        // 同输入串（候选覆盖的那段字母）下选过的优先；上下文是上一个上屏的词（句首为 None）：
+        // 同输入串的累计与最近选择参与加分；上下文是上一个上屏的词（句首为 None）：
         // `ba` 在「做了」后面出 吧、句首出 把
         let log_total = (self.total_frequency() as f64).max(1.0).ln();
         let letters = choice_key(scope, scope.len());
@@ -160,7 +174,10 @@ impl Engine {
                 hit.text,
                 sentence::fallback_log_prob(hit.frequency, log_total),
             );
-            (choice, log_prob)
+            let recent = letters.get(..covered).map_or(0.0, |input| {
+                self.learner.recent_choice_weight(input, hit.text)
+            });
+            (choice, log_prob + ranking::RECENT_CHOICE_BONUS * recent)
         });
         // 辅码态：词库候选按码段**反向**过滤（逐个问「有没有以码段开头的码」），无码词直接隐藏；
         // 命中的按「完全匹配码 > 码长降序 > 原词频序」重排（stable sort 保住 rank 排好的原序）。

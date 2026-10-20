@@ -36,6 +36,9 @@ pub struct Ivars {
     /// 竖排 / 横排。
     layout: Cell<LayoutMode>,
 
+    /// 竖排向上展开时倒序展示，由窗口定位决定。
+    vertical_reversed: Cell<bool>,
+
     /// 云联想的小云朵。
     cloud: CloudIcon,
 
@@ -118,6 +121,7 @@ impl CandidateView {
         let this = mtm.alloc::<Self>().set_ivars(Ivars {
             frame: RefCell::new(Frame::default()),
             layout: Cell::new(LayoutMode::default()),
+            vertical_reversed: Cell::new(false),
             cloud,
             theme,
             bitmap: RefCell::new(None),
@@ -183,29 +187,39 @@ impl CandidateView {
         self.ivars().layout.set(layout);
     }
 
-    /// 更新内容并返回需要的窗口尺寸。
-    pub fn set_frame(&self, frame: &Frame) -> NSSize {
+    /// 更新内容并按定位结果决定竖排方向。
+    pub fn set_frame(&self, frame: &Frame, above: bool) {
         *self.ivars().frame.borrow_mut() = frame.clone();
+        let reversed = above && self.ivars().layout.get() == LayoutMode::Vertical;
+        self.ivars().vertical_reversed.set(reversed);
         self.setNeedsDisplay(true);
         if let Some(bitmap) = &mut *self.ivars().bitmap.borrow_mut() {
-            return bitmap.set_frame(
+            bitmap.set_frame(
+                frame,
+                self.ivars().layout.get(),
+                reversed,
+                self.is_dark(),
+                self.backing_scale(),
+            );
+        }
+    }
+
+    /// 先量尺寸，窗口定位后再按展开方向更新画面。
+    pub fn measure_frame(&self, frame: &Frame) -> NSSize {
+        if let Some(bitmap) = &mut *self.ivars().bitmap.borrow_mut() {
+            return bitmap.content_size(
                 frame,
                 self.ivars().layout.get(),
                 self.is_dark(),
                 self.backing_scale(),
             );
         }
-        self.preferred_size()
-    }
-
-    fn preferred_size(&self) -> NSSize {
         let theme = self.theme();
-        let frame = self.ivars().frame.borrow();
-        let (top_width, top_height) = self.top_line_size(&frame);
+        let (top_width, top_height) = self.top_line_size(frame);
         let (body_width, body_height) = match self.ivars().layout.get() {
-            LayoutMode::Vertical => self.vertical_size(&frame),
-            LayoutMode::Horizontal if frame.columns > 0 => self.matrix_size(&frame),
-            LayoutMode::Horizontal => self.horizontal_size(&frame),
+            LayoutMode::Vertical => self.vertical_size(frame),
+            LayoutMode::Horizontal if frame.columns > 0 => self.matrix_size(frame),
+            LayoutMode::Horizontal => self.horizontal_size(frame),
         };
         let width = top_width.max(body_width);
         NSSize::new(
@@ -390,6 +404,13 @@ impl CandidateView {
         .fill();
 
         let mut y = theme.padding;
+        if self.ivars().vertical_reversed.get() && self.ivars().layout.get() == LayoutMode::Vertical
+        {
+            self.draw_vertical(&frame, y, bounds);
+            y += self.vertical_size(&frame).1;
+            self.draw_top_line(&frame, y);
+            return;
+        }
         y += self.draw_top_line(&frame, y);
         match self.ivars().layout.get() {
             LayoutMode::Vertical => self.draw_vertical(&frame, y, bounds),
@@ -456,17 +477,38 @@ impl CandidateView {
         let columns = self.columns(&frame.rows);
         let text_x = theme.padding + columns.index_width + theme.column_gap;
         let annotation_x = text_x + columns.text_width + theme.column_gap;
+        let reversed = self.ivars().vertical_reversed.get();
+        let footer = frame
+            .footer
+            .as_deref()
+            .map(|footer| (footer, self.measure(footer, &theme.index_font)));
+        if reversed && let Some((footer, size)) = &footer {
+            self.draw_text(
+                footer,
+                &theme.index_font,
+                &theme.index_color,
+                y + theme.row_padding,
+                bounds.size.width - theme.padding - size.width,
+            );
+            y += size.height + theme.row_padding;
+        }
         for (i, row) in frame.rows.iter().enumerate() {
+            let visual_index = if reversed {
+                frame.rows.len() - 1 - i
+            } else {
+                i
+            };
+            let row_y = y + columns.row_height * visual_index as f64;
             if i == frame.highlighted {
                 let rect = NSRect::new(
-                    NSPoint::new(theme.padding / 2.0, y),
+                    NSPoint::new(theme.padding / 2.0, row_y),
                     NSSize::new(bounds.size.width - theme.padding, columns.row_height),
                 );
                 self.fill_highlight(rect);
             }
             // 各列底部对齐到候选词基线附近：小字往下挪一点
             let text_size = self.measure(&row.text, &theme.text_font);
-            let baseline = y + theme.row_padding;
+            let baseline = row_y + theme.row_padding;
             let small_offset = self.small_offset(text_size.height);
             self.draw_text(
                 &row.index,
@@ -486,15 +528,13 @@ impl CandidateView {
                     x,
                 );
             }
-            y += columns.row_height;
         }
-        if let Some(footer) = frame.footer.as_deref() {
-            let size = self.measure(footer, &theme.index_font);
+        if !reversed && let Some((footer, size)) = footer {
             self.draw_text(
                 footer,
                 &theme.index_font,
                 &theme.index_color,
-                y + theme.row_padding,
+                y + columns.row_height * frame.rows.len() as f64 + theme.row_padding,
                 bounds.size.width - theme.padding - size.width,
             );
         }

@@ -1,8 +1,15 @@
 //! 形码查询：编码按前缀查码表，没有切分、没有整句；以及与拼音的混输。
 
 use std::collections::HashSet;
+use std::time::Instant;
 
-use super::*;
+use crate::candidate::{Candidate, CandidateKind, CandidateList};
+use crate::engine::{Engine, Learner, MAX_CANDIDATES, Timings, choice_key};
+use crate::parser::ParseError;
+use crate::ranking::Scored;
+use crate::{ranking, sentence};
+
+use super::Query;
 
 impl Engine {
     /// 形码方案（五笔）的候选：编码打全的词排在同前缀的更长编码词前面，其余按词频与上下文。
@@ -40,7 +47,7 @@ impl Engine {
             .collect();
         let lookup = start.elapsed();
 
-        // 同一段编码下选过的词优先，再按上下文得分（上一个上屏的词）；词频只在模型不认识时兜底
+        // 形码仍保留原有的同码选词优先；拼音的软偏好不改变形码的选重规则。
         let start = Instant::now();
         let letters = choice_key(keys, keys.len());
         ranking::rank(&mut scored, MAX_CANDIDATES, |item| {
@@ -54,7 +61,16 @@ impl Engine {
                 item.hit.text,
                 sentence::fallback_log_prob(item.hit.frequency, log_total),
             );
-            (choice, log_prob)
+            let recent = letters.get(..item.coverage).map_or(0.0, |input| {
+                self.learner.recent_choice_weight(input, item.hit.text)
+            });
+            (choice, log_prob + ranking::RECENT_CHOICE_BONUS * recent)
+        });
+        scored.sort_by_cached_key(|item| {
+            (
+                std::cmp::Reverse(item.hit.exact),
+                std::cmp::Reverse(self.learner.choice_weight(&letters, item.hit.text)),
+            )
         });
         let rank = start.elapsed();
         // `exact` 是排序的最高位，打全的都在最前面

@@ -22,9 +22,6 @@ pub struct Preview {
 
     /// （行容器，候选标签，释义标签）；第一行是高亮行。
     rows: Vec<(gtk::Box, gtk::Label, gtk::Label)>,
-
-    /// 横排时高亮候选的释义单独一行。
-    horizontal_annotation: gtk::Label,
 }
 
 impl Preview {
@@ -61,12 +58,6 @@ impl Preview {
         }
         root.append(&candidates);
 
-        let horizontal_annotation = gtk::Label::new(Some(ANNOTATIONS[0]));
-        horizontal_annotation.add_css_class("qj-annotation");
-        horizontal_annotation.add_css_class("qj-horizontal-annotation");
-        horizontal_annotation.set_xalign(0.0);
-        root.append(&horizontal_annotation);
-
         let provider = gtk::CssProvider::new();
         if let Some(display) = gdk::Display::default() {
             gtk::style_context_add_provider_for_display(
@@ -80,7 +71,6 @@ impl Preview {
             provider,
             candidates,
             rows,
-            horizontal_annotation,
         }
     }
 
@@ -95,17 +85,38 @@ impl Preview {
         } else {
             gtk::Orientation::Horizontal
         });
-        for (_, _, annotation) in &self.rows {
-            annotation.set_visible(vertical && !annotation.text().is_empty());
+        for (row, candidate, annotation) in &self.rows {
+            row.set_orientation(if vertical {
+                gtk::Orientation::Horizontal
+            } else {
+                gtk::Orientation::Vertical
+            });
+            row.set_spacing(if vertical { 12 } else { 0 });
+            row.set_valign(gtk::Align::Start);
+            candidate.set_hexpand(vertical);
+            annotation.set_xalign(0.0);
+            // 横排所有格子保留第二行，缺释义时留白。
+            annotation.set_visible(!vertical || !annotation.text().is_empty());
         }
-        self.horizontal_annotation.set_visible(!vertical);
 
-        let comment = model.comment_color.as_deref().unwrap_or("#6b7280");
-        let highlight = model
-            .highlight_comment_color
-            .as_deref()
-            .unwrap_or("#dbeafe");
-        let annotation_size = (model.font.size * model.comment_factor / 100).max(6);
+        let comment = if vertical {
+            model.comment_color.as_deref().unwrap_or("#6b7280")
+        } else {
+            &model.normal_color
+        };
+        let highlight = if vertical {
+            model
+                .highlight_comment_color
+                .as_deref()
+                .unwrap_or("#dbeafe")
+        } else {
+            &model.highlight_color_text
+        };
+        let annotation_size = if vertical {
+            (model.font.size * model.comment_factor / 100).max(6)
+        } else {
+            model.font.size
+        };
         let weight = match model.font.weight {
             FontWeight::Regular => "normal",
             FontWeight::Bold => "bold",
@@ -118,7 +129,7 @@ impl Preview {
              .qj-highlight {{ background-color: #3584e4; }}
              .qj-preview .qj-highlight label {{ color: {text_highlight}; }}
              .qj-preview .qj-annotation {{ font-size: {annotation_size}pt; color: {comment}; }}
-             .qj-preview .qj-highlight .qj-annotation, .qj-preview .qj-horizontal-annotation {{ color: {highlight}; }}",
+             .qj-preview .qj-highlight .qj-annotation {{ color: {highlight}; }}",
             css_family(&model.font.family),
             model.font.size,
             weight,

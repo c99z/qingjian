@@ -77,19 +77,39 @@ impl BitmapPainter {
         })
     }
 
-    /// 记下新一帧并画好，返回窗口该有的尺寸（点）。
-    pub fn set_frame(
+    /// 定位前量内容区，与实际绘制使用相同的帧、字体和倍数。
+    pub fn content_size(
         &mut self,
         frame: &Frame,
         layout: LayoutMode,
         dark: bool,
         scale: f32,
     ) -> NSSize {
+        let theme = if dark { Theme::dark() } else { Theme::light() };
+        let (width, height) = self.renderer.content_size(
+            &convert::frame(frame),
+            render_layout(layout),
+            &theme,
+            scale,
+        );
+        NSSize::new(
+            f64::from(width) / f64::from(scale),
+            f64::from(height) / f64::from(scale),
+        )
+    }
+
+    /// 记下新一帧并画好，返回窗口该有的尺寸（点）。
+    pub fn set_frame(
+        &mut self,
+        frame: &Frame,
+        layout: LayoutMode,
+        vertical_reversed: bool,
+        dark: bool,
+        scale: f32,
+    ) -> NSSize {
         self.frame = convert::frame(frame);
-        self.layout = match layout {
-            LayoutMode::Vertical => Layout::Vertical,
-            LayoutMode::Horizontal => Layout::Horizontal,
-        };
+        self.frame.vertical_reversed = vertical_reversed;
+        self.layout = render_layout(layout);
         self.dark = dark;
         self.scale = scale;
         self.repaint();
@@ -143,6 +163,13 @@ impl BitmapPainter {
         self.size = NSSize::new(f64::from(width), f64::from(height));
         self.image = to_image(&rendered.pixmap, self.size);
         tracing::debug!(elapsed = ?started.elapsed(), width, height, "候选窗位图已画");
+    }
+}
+
+fn render_layout(layout: LayoutMode) -> Layout {
+    match layout {
+        LayoutMode::Vertical => Layout::Vertical,
+        LayoutMode::Horizontal => Layout::Horizontal,
     }
 }
 

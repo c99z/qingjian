@@ -1,6 +1,11 @@
 //! 整句候选：把词图里重排过的前几条路径变成候选，以及整句转换本身。
 
-use super::*;
+use crate::candidate::{Candidate, CandidateKind};
+use crate::engine::query::sentence_batch::SentenceBatch;
+use crate::engine::query::{EnglishTail, leading_english};
+use crate::engine::{ALTERNATE_MIN_SYLLABLES, Engine, Learner, RESCORE_PATHS, SENTENCE_CANDIDATES};
+use crate::parser::{self, Segmentation};
+use crate::sentence::{self, Conversion};
 
 impl Engine {
     /// 整句候选。没有英文尾段时是整段拼音的转换（[`Self::plain_sentence`]），排在开头的英文候选之后。
@@ -29,22 +34,25 @@ impl Engine {
                 // 整段读成拼音的那条本来就是「另一种读法」，只给一条
                 if tail.competes
                     && let Some(full) = first_segmentation(keys)
-                    && let Some(plain) = self.plain_sentence(items, &full, typos, false).pop()
                 {
-                    let position = items.len().min(1);
-                    items.insert(position, plain);
+                    let mut batch = self.plain_sentence(items, &full, typos, false);
+                    let position = batch.insertion_index(items, items.len().min(1));
+                    if let Some(plain) = batch.items.pop() {
+                        items.insert(position, plain);
+                    }
                 }
             }
             _ => {
                 // 整段本身就是英文词（`database`）：备选整句会把那条英文候选再往后挤，只给一条
                 let alternates = !self.scope_is_english_word();
-                let sentences = self.plain_sentence(items, best, typos, alternates);
-                let position = leading_english(items);
+                let batch = self.plain_sentence(items, best, typos, alternates);
+                let position = batch.insertion_index(items, leading_english(items));
+                let sentences = batch.items;
                 // 词图读不通整段时模型直接生成的整句排在词图那几条前面：这时词图给的是把英文段
                 // 硬读成拼音的结果（`yongdockerbushuhenfangbian` → 用的哦乘客仍不熟很方便），排它前面没有可惜的
                 // `typos` 为假就是拼写纠错已经生效（见调用处），那时 `best` 是纠正后的切分
                 let generated: Vec<Candidate> = self
-                    .generated_sentence_candidates(best, keys, !typos)
+                    .generated_sentence_candidates(best, keys, !typos, items)
                     .into_iter()
                     .filter(|g| {
                         !items
@@ -70,19 +78,20 @@ impl Engine {
     /// 整段拼音的整句候选：最优切分至少两个音节、且最优路径不止一个词时才有（空格上屏的就是它）。
     /// 整段本身就是词库里的词时不重复；有音节没转成字的不算句子。
     /// 词级候选里已有同文本同读音的候选时不出（那条留在词级排序给它的位置），同文本不同读音的从 `items` 里去掉。
+    /// 补回的完整匹配词胜出时，原有整句保留在该词之后，仍可改选和学习。
     ///
     /// `alternates` 为真且输入够长时把重排后的第 2、3 条路径也给出来（[`SENTENCE_CANDIDATES`] 条封顶）：
     /// 长句错一个字就得整句拆开重打，一条候选不够用；短输入不给，那几格留给词级候选更值。
     /// 备选只收真整句（路径上不止一个词），「整段读成一个词」那种噪声信道的判断只认第一条。
-    pub(in crate::engine) fn plain_sentence(
+    pub(super) fn plain_sentence(
         &self,
         items: &mut Vec<Candidate>,
         best: &Segmentation,
         typos: bool,
         alternates: bool,
-    ) -> Vec<Candidate> {
+    ) -> SentenceBatch {
         if best.syllables.len() < 2 {
-            return Vec::new();
+            return SentenceBatch::default();
         }
         let wanted = if alternates && best.syllables.len() >= ALTERNATE_MIN_SYLLABLES {
             SENTENCE_CANDIDATES
@@ -91,7 +100,7 @@ impl Engine {
         };
         let mut paths = self.sentence_paths(&best.patterns(), typos, false, wanted);
         if paths.is_empty() {
-            return Vec::new();
+            return SentenceBatch::default();
         }
         // 不按原样读的路径（敲错边 / 模糊音）不许压过「敲的拼音本身就是一个词」：`jineng` 按 `jin eng` 切时
         // 词图里没有 技能，敲错边读出 近藤；`ceshi` 读出 的是。词级候选里有音节正好拼成整段输入的词时退回原样的路径
@@ -104,6 +113,10 @@ impl Engine {
                 paths = self.sentence_paths(&best.patterns(), false, false, wanted);
             }
         }
+        // 词图可能因切分或格子裁剪漏掉整词；把完整匹配的词放回同一批路径比较，
+        // 免得整句仅凭插入位置压过它。模型重排时也必须看到这条整词路径。
+        let recovered_word_wins = typos && self.compete_with_exact_word(items, best, &mut paths);
+        let after = recovered_word_wins.then(|| paths[0].text.clone());
         let mut out: Vec<Candidate> = Vec::new();
         for (rank, conversion) in paths.into_iter().enumerate() {
             if out.len() >= wanted {
@@ -114,7 +127,7 @@ impl Engine {
             let first = rank == 0;
             if conversion.has_placeholder() {
                 if first {
-                    return Vec::new();
+                    return SentenceBatch::default();
                 }
                 continue;
             }
@@ -128,8 +141,8 @@ impl Engine {
                 && conversion.syllables.len() == best.syllables.len()
             {
                 CandidateKind::Chinese
-            } else if first {
-                return Vec::new();
+            } else if first && !recovered_word_wins {
+                return SentenceBatch::default();
             } else {
                 continue;
             };
@@ -143,7 +156,7 @@ impl Engine {
                 if items[index].syllables == conversion.syllables {
                     // 首选与词级候选撞上：整句这边一条都不出（备选插在它前面会绕到那条词前面去）
                     if first {
-                        return Vec::new();
+                        return SentenceBatch::default();
                     }
                     continue;
                 }
@@ -158,7 +171,7 @@ impl Engine {
                 aux_code: None,
             });
         }
-        out
+        SentenceBatch { items: out, after }
     }
 
     /// 跑一次整句转换：主词库 + 用户词（含模糊音与敲错写法，命中的按代价扣分），静态语言模型与个人 n-gram 插值，用户选择次数加分。
@@ -213,13 +226,24 @@ impl Engine {
             |index, syllable| expanded.cost(index, syllable),
             &mut self.span_cache.borrow_mut(),
         );
+        // 词级候选与整句最后会合并：整句不能靠插入位置绕过同码选择偏好。
+        // 在神经重排前加进个人分，static_score 不变，模型替换静态分时便不会抹掉它。
+        let keys: String = patterns.iter().map(|p| p.text).collect();
+        let mut preferred = false;
+        for path in &mut paths {
+            let bonus = self.sentence_choice_bonus(&keys, &path.text);
+            path.score += bonus;
+            preferred |= bonus > 0.0;
+        }
+        if preferred {
+            paths.sort_by(|a, b| b.score.total_cmp(&a.score));
+        }
         // 与最优路径差得太远的不参与：那种差距多半是个人 n-gram 拉开的
         if paths.len() > 1 {
             let floor = paths[0].score - self.neural_margin;
             paths.retain(|p| p.score >= floor);
             // 条件是这批路径共同解释的那段按键，不是整个作用域：英文尾巴那条只转换了 head，
             // 拿整段当条件会让它凭空背上没覆盖的字母
-            let keys: String = patterns.iter().map(|p| p.text).collect();
             self.rescore_paths(&mut paths, &keys);
         }
         paths

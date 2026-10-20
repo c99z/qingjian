@@ -10,6 +10,7 @@
 #include <fcitx/statusarea.h>
 #include <fcitx/userinterfacemanager.h>
 #include <fcitx-utils/misc.h>
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
@@ -320,7 +321,16 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
     });
     list->setPageSize(9);
     list->setLabels({"1", "2", "3", "4", "5", "6", "7", "8", "9"});
-    list->setLayoutHint(frame.value("layout", "horizontal") == "vertical" ? CandidateLayoutHint::Vertical : CandidateLayoutHint::Horizontal);
+    const bool vertical = frame.value("layout", "horizontal") == "vertical";
+    list->setLayoutHint(vertical ? CandidateLayoutHint::Vertical : CandidateLayoutHint::Horizontal);
+    // 同一页统一留出第二行，避免没有译词的候选或序号垂直居中。
+    const bool stacked = !vertical && std::any_of(items.begin(), items.end(), [](const auto &item) {
+        const auto &translation = item.at("translation");
+        return !item.at("text").template get<std::string>().empty() && translation.is_object()
+            && !translation.at("senses").empty()
+            && !translation.at("senses").front().at("text").template get<std::string>().empty();
+    });
+    if (stacked) list->setLabels({"1\n", "2\n", "3\n", "4\n", "5\n", "6\n", "7\n", "8\n", "9\n"});
     nlohmann::json senses = nlohmann::json::array();
     size_t index = 0;
     for (const auto &item : items) {
@@ -336,7 +346,7 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
         list->append(std::make_unique<qingjian::Word>(text, annotation, [this, alive = alive_, watched, index, revision, identity](InputContext *ic) {
             if (*alive && ic && ic == watched.get() && ic->hasFocus() && ic->propertyFor(&sessions_)->revision == revision)
                 exchange(ic, {{"Candidate", {{"identity", identity}, {"index", index}}}});
-        }));
+        }, stacked));
         ++index;
     }
     auto highlight = frame.at("highlight").get<size_t>();

@@ -51,7 +51,12 @@ cargo run --release -p qingjian-dict-convert -- english assets/lexicon/05_englis
 uv run tools/corpus/english_frequency.py data/generated/english.tsv -o data/generated/english-frequency.tsv
 cargo run --release -p qingjian-dict-convert -- english assets/lexicon/05_english/00_all_words.tsv assets/lexicon/05_english/07_display_forms.tsv --frequency data/generated/english-frequency.tsv
 # 6. 打包（bundle.sh 会自动做；领域词库的 .qj 第 4 步已经写好，bundle.sh 直接拷进 Resources/dicts/）
-cargo run --release -p qingjian-dict-convert -- pack dict --name 青简基础词库 --license "MIT AND Unicode-3.0"
+cargo run --release -p qingjian-dict-convert -- pack dict --name 青简基础词库 --license "MIT AND Unicode-3.0 AND GPL-3.0-or-later"
+# 7. 人工补词：在打包后的词库与 LM 上一起补缺，已有词频与二元计数不覆盖，可重复执行。
+#    modern_words.tsv 独立编写（GPL-3.0-or-later）；统一初始化权重 100 不是语料次数。
+#    只为模型尚未收录的词添加一元先验，不合成没有语料依据的二元接续。
+#    需要先有 data/generated/lm.qj；没有原始语料时可以直接使用已有 .qj。
+cargo run --release -p qingjian-dict-convert -- supplement
 ```
 
 读音来自 Unihan（`data/unihan/Unihan_Readings.txt`，从 https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip 解出，Unicode License v3）；

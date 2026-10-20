@@ -31,6 +31,7 @@ mod oov_filter;
 mod pack;
 mod phrases;
 mod stroke;
+mod supplement;
 mod wubi;
 
 use clap::Parser;
@@ -56,6 +57,12 @@ fn run() -> Result<(), ConvertError> {
     let args = Args::parse();
     std::fs::create_dir_all(&args.out_dir)?;
     match args.command {
+        Command::Supplement {
+            dict,
+            lm,
+            words,
+            license,
+        } => supplement::convert(&dict, &lm, &words, &license, &args.out_dir),
         Command::Lexicon {
             pack,
             unihan,

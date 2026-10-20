@@ -78,9 +78,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let shadow = (!args.no_shadow).then_some(Shadow::mac_panel());
 
-    let scenes: [(&str, Frame, Layout); 7] = [
+    let scenes: [(&str, Frame, Layout); 8] = [
         ("matrix-horizontal", matrix(), Layout::Horizontal),
         ("nihao-vertical", nihao(), Layout::Vertical),
+        (
+            "nihao-vertical-reversed",
+            Frame {
+                vertical_reversed: true,
+                ..nihao()
+            },
+            Layout::Vertical,
+        ),
         (
             "nihao-horizontal",
             nihao_with_sentence(),
@@ -230,6 +238,7 @@ fn matrix() -> Frame {
             cursor: 3,
         }),
         rows,
+        vertical_reversed: false,
         highlighted: Some(12),
         columns: 9,
         column_ems: (0..9)
@@ -296,6 +305,7 @@ fn nihao() -> Frame {
             ),
         ],
         highlighted: Some(0),
+        vertical_reversed: false,
         columns: 0,
         column_ems: Vec::new(),
         footer: Some("1/6".to_owned()),
@@ -368,6 +378,7 @@ fn corrected_japanese() -> Frame {
             ),
         ],
         highlighted: Some(1),
+        vertical_reversed: false,
         columns: 0,
         column_ems: Vec::new(),
         footer: None,
@@ -382,6 +393,7 @@ fn probe() -> Frame {
         preedit: None,
         rows: vec![Row::plain(0, "青简 hello 🙂 日本語 骨直曜")],
         highlighted: None,
+        vertical_reversed: false,
         columns: 0,
         column_ems: Vec::new(),
         footer: None,

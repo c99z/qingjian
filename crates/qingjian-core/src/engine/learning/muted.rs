@@ -74,6 +74,10 @@ impl Learner for MutedLearner {
         self.inner.choice_weight(input, text)
     }
 
+    fn recent_choice_weight(&self, input: &str, text: &str) -> f64 {
+        self.inner.recent_choice_weight(input, text)
+    }
+
     fn record_raw(&mut self, input: &str) {
         if !self.muted() {
             self.inner.record_raw(input);

@@ -334,7 +334,7 @@ fn raw_committed_english_words_are_learned_and_come_back_as_candidates() {
             .iter()
             .all(|c| c.kind != CandidateKind::English)
     );
-    // 英文模式下直通的词也学
+    // 英文模式下直通的词仍学，但完整拼音不再混进中文候选
     engine.set_english_mode(true);
     engine.set_input("wo");
     assert_eq!(engine.take_raw(), "wo");
@@ -345,7 +345,18 @@ fn raw_committed_english_words_are_learned_and_come_back_as_candidates() {
         wo.candidates
             .items
             .iter()
-            .any(|c| c.kind == CandidateKind::English && c.text == "wo")
+            .all(|c| c.kind != CandidateKind::English || c.text != "wo")
+    );
+    engine.set_english_mode(true);
+    engine.set_input("wo");
+    assert!(
+        engine
+            .query()
+            .unwrap()
+            .candidates
+            .items
+            .iter()
+            .any(|c| c.text == "wo")
     );
 }
 

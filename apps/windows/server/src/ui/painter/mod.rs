@@ -72,6 +72,20 @@ impl Painter {
         }
     }
 
+    /// 内容区尺寸（不含阴影），定位时使用与绘制相同的字体、主题与倍数。
+    pub(super) fn content_size(
+        &mut self,
+        frame: &Frame,
+        layout: LayoutMode,
+        dark: bool,
+        dpi: u32,
+    ) -> (i32, i32) {
+        let (width, height) =
+            self.renderer
+                .content_size(frame, render_layout(layout), &theme(dark), scale(dpi));
+        (width as i32, height as i32)
+    }
+
     /// 画一帧候选窗口；`dpi` 96 为 100%。失败记日志返回 `None`，调用方退回 GDI。
     pub(super) fn render_frame(
         &mut self,
@@ -80,10 +94,7 @@ impl Painter {
         dark: bool,
         dpi: u32,
     ) -> Option<Rendered> {
-        let layout = match layout {
-            LayoutMode::Vertical => Layout::Vertical,
-            LayoutMode::Horizontal => Layout::Horizontal,
-        };
+        let layout = render_layout(layout);
         let started = std::time::Instant::now();
         let rendered = self
             .renderer
@@ -110,6 +121,13 @@ impl Painter {
             .render_status(cells, &theme(dark), scale(dpi), Some(&SHADOW))
             .inspect_err(|error| tracing::warn!(%error, "状态条渲染失败"))
             .ok()
+    }
+}
+
+fn render_layout(layout: LayoutMode) -> Layout {
+    match layout {
+        LayoutMode::Vertical => Layout::Vertical,
+        LayoutMode::Horizontal => Layout::Horizontal,
     }
 }
 

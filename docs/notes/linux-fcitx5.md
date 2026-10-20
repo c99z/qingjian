@@ -50,6 +50,10 @@ FocusOut 的行内预编辑由框架或声明 ClientUnfocusCommit 的客户端�
 
 每次候选响应绑定 generation/context/revision，revision 在整个 Server 内递增；过期或跨会话点击返回 Ignored，不改变当前会话的展示状态。
 默认面板只展示第一条释义，完成面板更新后报告当前页对应的 `(候选槽位, 0)`。
+`[general] layout` 传为 Fcitx5 的 `CandidateLayoutHint`。竖排保留正文 / comment 并列；横排有释义时，
+`Word` 将第一条释义作为带 `DontCommit` 的第二行附在展示正文中，comment 留空，序号同步保留第二行，
+整页候选等高、缺释义处留白。整页无释义时维持单行。数字键 / 点击仍使用原始槽位，提交正文不包含换行与释义。
+经典面板的正文与 comment 固定并排，多行正文共用候选字号与颜色，所以独立 comment 样式仅用于竖排；设置预览遵循相同规则。
 隐藏、失焦、私密、无候选与过期回报不产生有效展示记录；Server 只凭已生成帧不记展示。
 
 组句期间插件每 20 ms 发一次 `Poll`（与 Server 等模型结果的轮询间隔相同），Server 先 tick 再回当前帧。
@@ -94,6 +98,7 @@ Server 启动时按 `[model] enabled`（缺省开）在后台线程加载模型�
 - 真实桌面（2026-09-20）：GNOME 50 原生 Wayland，文本编辑器（GTK4）、FeatherPad（Qt6）、Firefox（snap）。Ubuntu 26.04 的 GNOME 已没有 X11 登录项。
   默认面板的外观与位置由 Fcitx5 决定：GTK4 应用里是输入模块自己画的黑白面板，Firefox 里是 Fcitx5 的橙色面板且与光标同一行，Fcitx5 自带拼音表现相同。
 - 真实桌面（2026-09-22，本地整句模型）：CachyOS，niri（原生 Wayland），Fcitx5 5.1.22，Microsoft Edge（Chromium，`--enable-wayland-ime`）与 Konsole（Qt6）：停顿后整句候选按模型换序。
+- 横排两行（2026-10-12）：Ubuntu 24.04.3，Fcitx5 5.1.23、GTK4 4.14.5 / libadwaita 1.5.0；Xephyr 隔离 X11 与私有 D-Bus，实际经典候选面板截图确认中文 / 释义上下对应、缺释义留白，数字 1 上屏「你好」且不带展示换行。真实 GTK 设置窗口验证横竖排草稿、保存与预览。
 - 未验证：KDE 与其他桌面、其他发行版、GTK3 / Qt5 应用、真实 X11 桌面会话。
 
 设置应用统计页服务离线时读 `usage.tsv` / `user-vocab.tsv` 并标明更新时间。清空日志只由服务操作既定日志路径，不接收外部文件参数。

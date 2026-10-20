@@ -1,6 +1,13 @@
 //! 附加候选：日期时间等快捷项、中英混输的英文词与补全、emoji。
 
-use super::*;
+use qingjian_dictionary::WordList;
+
+use super::{
+    EMOJI_PER_WORD, EMOJI_SCAN, EMOJI_TOTAL, ENGLISH_COMPLETIONS, Engine, Learner,
+    MIN_COMPLETION_LETTERS,
+};
+use crate::candidate::{Candidate, CandidateKind};
+use crate::{parser, ranking, shortcut};
 
 impl Engine {
     /// 精确匹配自定义输入码时，数字键应选择候选。
@@ -56,7 +63,7 @@ impl Engine {
 
     /// 中英混输：整段输入是英文词就把它加进候选。
     /// 缺省作为拼音「不像话」（切不动、或除末尾外还有声母缩写 / 残缺音节）时排第一，否则排第二；
-    /// 开了中文优先（`chinese_first`）整句 / 首个中文候选已经在前，英文词排第二。没有中文候选时总在第一。
+    /// 开了中文优先（`chinese_first`）首个中文候选在前，同输入下更常选的中文候选也不被英文挤开。没有中文候选时英文在第一。
     /// 两字母的全大写缩写（`mp` → MP、`bm` → BM）是个例外：整段太短、几乎总是在打中文（门票 / 编码），
     /// 这种让中文先；超过两个字母的正文英文（cargo / rust）照旧——按词频一刀切会把它们一起挤掉。
     /// 例外只管**没选过**的英文词：用户选过的照旧排第一（选过 OK，下次敲 `ok` 还是 OK 在前）。
@@ -77,13 +84,22 @@ impl Engine {
             translation: None,
             aux_code: None,
         };
-        let word = lists.iter().find_map(|words| words.get(text));
-        // 这段字母下用户选中文词（`key` → 可以）比选英文词的次数多：中文词留在第一，英文让到后面；
+        let word = lists.iter().find_map(|words| {
+            words
+                .get(text)
+                .filter(|word| self.mixed_english_allowed(word))
+        });
+        // 中英文都按同一输入下的偏好比较，不能拿中文的局部次数与英文的全局次数比较。
         // 拼音再不像话也是他自己教的
+        let preference = |word: &str| {
+            ranking::choice_bonus(self.learner.choice_weight(text, word))
+                + ranking::RECENT_CHOICE_BONUS * self.learner.recent_choice_weight(text, word)
+        };
         let chosen = items
-            .first()
-            .filter(|c| c.kind == CandidateKind::Chinese)
-            .map_or(0, |c| self.learner.choice_weight(text, &c.text));
+            .iter()
+            .find(|c| c.kind == CandidateKind::Chinese)
+            .map_or(0.0, |c| preference(&c.text));
+        let english_preference = word.map_or(0.0, preference);
         let english_weight = word.map_or(0, |w| self.learner.weight(w));
         // 两字母全大写缩写（mp → MP、bm → BM）让中文先：整段太短，几乎总是在打中文。
         // 但**不压过学习记录**：`ok` / `pc` / `ll` 同样满足「两个字母的全大写缩写」，一刀切会把它们一起
@@ -92,12 +108,20 @@ impl Engine {
         let short_acronym = english_weight == 0
             && text.len() <= 2
             && word.is_some_and(|word| word.chars().all(|c| c.is_ascii_uppercase()));
-        let english_first =
-            !self.chinese_first && unlikely_pinyin && chosen <= english_weight && !short_acronym;
+        let english_first = !self.chinese_first
+            && unlikely_pinyin
+            && chosen <= english_preference
+            && !short_acronym;
         let mut position = if items.is_empty() || english_first {
             0
         } else {
-            1
+            items
+                .iter()
+                .take_while(|c| {
+                    c.kind == CandidateKind::Chinese && preference(&c.text) > english_preference
+                })
+                .count()
+                .max(1)
         };
         if let Some(word) = word {
             items.insert(position, english_candidate(word));
@@ -109,6 +133,9 @@ impl Engine {
             let mut budget = ENGLISH_COMPLETIONS;
             for words in &lists {
                 for word in words.complete(text, budget) {
+                    if !self.mixed_english_allowed(word) {
+                        continue;
+                    }
                     if items
                         .iter()
                         .any(|c| c.kind == CandidateKind::English && c.text == word)
@@ -131,10 +158,25 @@ impl Engine {
     pub(in crate::engine) fn scope_is_english_word(&self) -> bool {
         let scope = self.composition.scope();
         !scope.is_empty()
-            && self
-                .english_lists()
-                .iter()
-                .any(|words| words.get(scope).is_some())
+            && self.english_lists().iter().any(|words| {
+                words
+                    .get(scope)
+                    .is_some_and(|word| self.mixed_english_allowed(word))
+            })
+    }
+
+    /// 个人表里能完整读成拼音的小写串，只有明确选过英文候选才参与中文混输。
+    /// 随包英文词与英文模式照常可用，不删用户数据。
+    pub(super) fn mixed_english_allowed(&self, word: &str) -> bool {
+        if self.english_mode || !word.bytes().all(|b| b.is_ascii_lowercase()) {
+            return true;
+        }
+        let code = word.to_ascii_lowercase();
+        self.english
+            .as_ref()
+            .is_some_and(|words| words.get(&code).is_some())
+            || self.learner.choice_weight(&code, word) > 0
+            || !parser::is_fully_segmentable(word)
     }
 
     pub(super) fn english_lists(&self) -> Vec<&WordList> {

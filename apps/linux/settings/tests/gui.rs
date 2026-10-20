@@ -9,6 +9,8 @@ mod support;
 use qingjian_linux_settings::state::DraftStore;
 use qingjian_linux_settings::ui::window;
 use support::{capture, descendants, pump, wait_for};
+#[path = "support/layout.rs"]
+mod layout;
 
 #[test]
 fn native_window_edits_reverts_saves_and_renders() {
@@ -93,20 +95,7 @@ fn native_window_edits_reverts_saves_and_renders() {
         .unwrap();
     sidebar.select_row(sidebar.row_at_index(1).as_ref());
     wait_for(|| stack.visible_child_name().as_deref() == Some("1"));
-    // 等待外观 D-Bus 探测完成，然后以 GTK 实际渲染输出检查布局，无需桌面焦点。
-    let status = descendants(&window.clone().upcast())
-        .into_iter()
-        .filter_map(|w| w.downcast::<adw::ActionRow>().ok())
-        .find(|r| r.title() == "Fcitx5")
-        .unwrap();
-    wait_for(|| status.subtitle().as_deref() != Some("检测中…"));
-    let expander = descendants(&window.clone().upcast())
-        .into_iter()
-        .find_map(|w| w.downcast::<adw::ExpanderRow>().ok())
-        .unwrap();
-    assert!(expander.shows_enable_switch());
-    expander.set_enable_expansion(true);
-    expander.set_expanded(true);
+    layout::verify(&window, &stack, &widgets, &path);
     let split = widgets
         .iter()
         .find_map(|w| w.clone().downcast::<adw::NavigationSplitView>().ok())

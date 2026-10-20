@@ -8,6 +8,8 @@ mod item;
 mod matrix;
 mod rendered;
 mod status;
+#[cfg(test)]
+mod tests;
 mod top_line;
 mod vertical;
 
@@ -160,10 +162,17 @@ impl Renderer {
             theme.colors.background,
         );
         let mut y = margin + metrics.padding();
-        y += self.draw_top_line(&mut canvas, frame, &metrics, margin, y);
+        let reversed = layout == Layout::Vertical && frame.vertical_reversed;
+        if !reversed {
+            y += self.draw_top_line(&mut canvas, frame, &metrics, margin, y);
+        }
         match layout {
             Layout::Vertical => {
                 self.draw_vertical(&mut canvas, frame, &metrics, margin, y, content_width);
+                if reversed {
+                    y += self.vertical_size(frame, &metrics).1;
+                    self.draw_top_line(&mut canvas, frame, &metrics, margin, y);
+                }
             }
             Layout::Horizontal if frame.columns > 0 => {
                 self.draw_matrix(&mut canvas, frame, &metrics, margin, y, content_width);
@@ -180,6 +189,18 @@ impl Renderer {
             content_height: content_height.ceil() as u32,
             scale,
         })
+    }
+
+    /// 内容区像素宽高（不含阴影），供壳先定位、再按展开方向绘制。
+    pub fn content_size(
+        &mut self,
+        frame: &Frame,
+        layout: Layout,
+        theme: &Theme,
+        scale: f32,
+    ) -> (u32, u32) {
+        let (width, height) = self.preferred_size(frame, layout, &Metrics { theme, scale });
+        (width.ceil() as u32, height.ceil() as u32)
     }
 
     /// 量一段文字在 `size` 点字号下的宽度（点），与原生排版的数值对照用。

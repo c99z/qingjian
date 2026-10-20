@@ -6,6 +6,8 @@
 #include <cassert>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <thread>
 #include <sys/wait.h>
 #include <signal.h>
@@ -15,7 +17,13 @@ int main(int argc, char **argv) {
     char directory[] = "/tmp/qingjian-real-XXXXXX";
     assert(mkdtemp(directory));
     std::string socketPath = std::string(directory) + "/server.sock";
-    std::string dictionary = std::string(argv[2]) + "/assets/sample/dict.tsv";
+    std::string dictionary = std::string(directory) + "/dict.tsv";
+    {
+        std::ifstream source(std::string(argv[2]) + "/assets/sample/dict.tsv");
+        std::ofstream output(dictionary);
+        assert(source && output);
+        output << source.rdbuf() << "\n再\tzai\t100\n在\tzai\t90\n";
+    }
     setenv("QINGJIAN_SOCKET", socketPath.c_str(), 1);
     auto sampleDir = std::filesystem::path(directory) / "assets/sample";
     std::filesystem::create_directories(sampleDir);
@@ -42,6 +50,25 @@ int main(int argc, char **argv) {
         fcitx::QingjianEngine engine(&instance.addonManager());
         Context context(instance.inputContextManager());
         context.focusIn(); // 全空 capability 应正常输入。
+        // 用真实插件转发退格的按下 / 释放；退格必须透传给应用，重新选词后撤回旧学习。
+        for (const auto &word : {"再", "在"}) {
+            for (char c : std::string("zai")) assert(engine.process(&context, fcitx::Key(static_cast<fcitx::KeySym>(c))));
+            auto choices = context.inputPanel().candidateList();
+            assert(choices);
+            int index = 0;
+            while (index < choices->size() && choices->candidate(index).text().toString() != word) ++index;
+            assert(index < choices->size());
+            choices->candidate(index).select(&context);
+            assert(context.committed == word);
+            if (std::string(word) == "再") {
+                assert(!engine.process(&context, fcitx::Key(FcitxKey_BackSpace)));
+                assert(!engine.process(&context, fcitx::Key(FcitxKey_BackSpace), true));
+            }
+            context.committed.clear(); // 模拟应用处理透传退格。
+        }
+        for (char c : std::string("zai")) assert(engine.process(&context, fcitx::Key(static_cast<fcitx::KeySym>(c))));
+        assert(context.inputPanel().candidateList()->candidate(0).text().toString() == "在");
+        assert(engine.process(&context, fcitx::Key(FcitxKey_Escape)));
         for (char c : std::string("nihao")) assert(engine.process(&context, fcitx::Key(static_cast<fcitx::KeySym>(c))));
         auto list = context.inputPanel().candidateList();
         assert(list && list->size() > 0 && list->candidate(0).text().toString() == "你好");
@@ -81,5 +108,11 @@ int main(int argc, char **argv) {
     int status = 0;
     waitpid(server, &status, 0);
     assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    // SIGTERM 正常保存后仍没有误选的偏好；后来的选择已落盘。
+    std::ifstream choices(std::filesystem::path(directory) / "qingjian/user-choices.tsv");
+    assert(choices);
+    std::string saved((std::istreambuf_iterator<char>(choices)), std::istreambuf_iterator<char>());
+    assert(saved.find("zai\t再\t") == std::string::npos);
+    assert(saved.find("zai\t在\t1\t") != std::string::npos);
     std::filesystem::remove_all(directory);
 }

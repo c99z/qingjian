@@ -21,6 +21,23 @@ pub struct Args {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// 在现成词库与语言模型上补人工词条；只有未收录的词新增一元先验，不覆盖已有语料计数
+    Supplement {
+        #[arg(long, default_value = "data/generated/dict.qj")]
+        dict: PathBuf,
+
+        #[arg(long, default_value = "data/generated/lm.qj")]
+        lm: PathBuf,
+
+        /// 词、初始化权重、完整拼音三列，Tab 分隔
+        #[arg(long, default_value = "assets/lexicon/modern_words.tsv")]
+        words: PathBuf,
+
+        /// 补词表的许可证；与原数据的许可合并记录
+        #[arg(long, default_value = "GPL-3.0-or-later")]
+        license: String,
+    },
+
     /// 青简基础词库：从「输入法字词库_分类整理版」数据包 + Unihan 读音建 dict.tsv（两遍跑，见模块文档）
     Lexicon {
         /// 数据包目录（含 01_characters / 02_common / 03_domains），随仓库放在 assets/lexicon

@@ -3,10 +3,12 @@
 mod aux_code;
 mod cloud;
 mod code;
+mod competition;
 mod correction;
 mod custom;
 mod emoji;
 mod english;
+mod generating;
 mod learning;
 mod lookup;
 mod privacy;

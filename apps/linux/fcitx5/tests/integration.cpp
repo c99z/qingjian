@@ -31,7 +31,26 @@ int main(int argc, char **argv) {
     assert(context.inputPanel().preedit().empty() == (mode == "inline"));
     auto candidates = context.inputPanel().candidateList();
     assert(candidates && candidates->size() == 3 && candidates->toPageable()->hasNext());
-    assert(candidates->candidate(2).comment().toString() == "hello · 生");
+    assert(candidates->cursorIndex() == 2);
+    if (mode == "horizontal") {
+        assert(candidates->layoutHint() == fcitx::CandidateLayoutHint::Horizontal);
+        assert(candidates->candidate(2).text().toString() == "你好\nhello · 生");
+        assert(candidates->candidate(2).text().toStringForCommit() == "你好");
+        assert(candidates->candidate(2).comment().empty());
+        assert(candidates->label(2).toString() == "3\n");
+        assert(candidates->candidate(1).text().toString() == "你\n");
+        assert(candidates->candidate(1).text().splitByLine().size() == 2);
+        assert(candidates->candidate(0).isPlaceHolder() && candidates->candidate(0).text().toString().empty());
+    } else if (mode == "horizontal-plain") {
+        assert(candidates->layoutHint() == fcitx::CandidateLayoutHint::Horizontal);
+        assert(candidates->candidate(2).text().toString() == "你好");
+        assert(candidates->candidate(2).comment().toString().empty());
+        assert(!candidates->candidate(2).hasCustomLabel());
+    } else {
+        assert(candidates->layoutHint() == fcitx::CandidateLayoutHint::Vertical);
+        assert(candidates->candidate(2).text().toString() == "你好");
+        assert(candidates->candidate(2).comment().toString() == "hello · 生");
+    }
     candidates->candidate(0).select(&context);
     assert(context.committed.empty());
     if (mode == "failure") {
@@ -59,7 +78,8 @@ int main(int argc, char **argv) {
     mock.join();
     bool sawExposure = false;
     for (const auto &message : mock.messages) {
-        if (message.contains("DisplayAcknowledged") && message.at("DisplayAcknowledged").at("senses") == Json::parse("[[2,0]]")) sawExposure = true;
+        if (message.contains("DisplayAcknowledged") && message.at("DisplayAcknowledged").at("senses") ==
+            Json::parse(mode == "horizontal-plain" ? "[]" : "[[2,0]]")) sawExposure = true;
     }
     assert(sawExposure);
 }

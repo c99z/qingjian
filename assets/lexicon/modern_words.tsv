@@ -1,0 +1,17 @@
+# 青简人工补词；GPL-3.0-or-later。词条与读音独立编写，不取自第三方输入法词库。
+# 词\t初始化权重\t拼音。统一用常用词底值 100，不代表语料出现次数；已有模型计数不覆盖。
+内卷	100	nei juan
+摆烂	100	bai lan
+靠谱	100	kao pu
+拔草	100	ba cao
+打工人	100	da gong ren
+显眼包	100	xian yan bao
+搭子	100	da zi
+异步	100	yi bu
+破防	100	po fang
+躺平	100	tang ping
+种草	100	zhong cao
+点赞	100	dian zan
+短视频	100	duan shi pin
+情绪价值	100	qing xu jia zhi
+候选词	100	hou xuan ci

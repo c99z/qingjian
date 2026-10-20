@@ -8,6 +8,7 @@ pub(super) fn frame(frame: &Frame) -> qingjian_render::Frame {
     qingjian_render::Frame {
         preedit: frame.preedit.as_ref().map(preedit),
         rows: frame.rows.iter().map(row).collect(),
+        vertical_reversed: false,
         highlighted: Some(frame.highlighted),
         columns: frame.columns,
         column_ems: frame.column_ems.clone(),

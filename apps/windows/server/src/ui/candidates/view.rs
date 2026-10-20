@@ -108,6 +108,13 @@ pub(super) fn paint(hdc: HDC, data: &RenderData, client: RECT) {
     unsafe { SetBkMode(hdc, TRANSPARENT) };
 
     let mut y = theme.padding;
+    if data.vertical_reversed && data.layout == LayoutMode::Vertical {
+        draw_rows(hdc, data, y, client.right - client.left);
+        y += vertical_size(hdc, data).1;
+        y += draw_notice(hdc, data, y);
+        draw_top_line(hdc, data, y);
+        return;
+    }
     y += draw_top_line(hdc, data, y);
     y += draw_notice(hdc, data, y);
     match data.layout {
@@ -224,17 +231,40 @@ fn draw_rows(hdc: HDC, data: &RenderData, mut y: i32, width: i32) {
     let columns = columns(hdc, theme, &data.rows);
     let text_x = theme.padding + columns.index_width + theme.column_gap;
     let annotation_x = text_x + columns.text_width + theme.column_gap;
+    let footer = data
+        .footer
+        .as_ref()
+        .map(|footer| (footer, measure(hdc, theme.index_font, footer)));
+    if data.vertical_reversed
+        && let Some((footer, size)) = &footer
+    {
+        draw_text(
+            hdc,
+            theme.index_font,
+            theme.index_color,
+            width - theme.padding - size.cx,
+            y + theme.row_padding,
+            footer,
+        );
+        y += size.cy + theme.row_padding;
+    }
     for (i, row) in data.rows.iter().enumerate() {
+        let visual_index = if data.vertical_reversed {
+            data.rows.len() - 1 - i
+        } else {
+            i
+        };
+        let row_y = y + columns.row_height * visual_index as i32;
         if i == data.highlight {
             let rect = RECT {
                 left: theme.padding / 2,
-                top: y,
+                top: row_y,
                 right: width - theme.padding / 2,
-                bottom: y + columns.row_height,
+                bottom: row_y + columns.row_height,
             };
             fill_round_rect(hdc, rect, theme.highlight, theme.corner_radius / 2);
         }
-        let baseline = y + theme.row_padding;
+        let baseline = row_y + theme.row_padding;
         let text_size = measure(hdc, theme.text_font, &row.text);
         let small_offset = small_offset(hdc, theme, text_size.cy);
         draw_text(
@@ -257,16 +287,16 @@ fn draw_rows(hdc: HDC, data: &RenderData, mut y: i32, width: i32) {
                 segment,
             );
         }
-        y += columns.row_height;
     }
-    if let Some(footer) = &data.footer {
-        let size = measure(hdc, theme.index_font, footer);
+    if !data.vertical_reversed
+        && let Some((footer, size)) = footer
+    {
         draw_text(
             hdc,
             theme.index_font,
             theme.index_color,
             width - theme.padding - size.cx,
-            y + theme.row_padding,
+            y + columns.row_height * data.rows.len() as i32 + theme.row_padding,
             footer,
         );
     }

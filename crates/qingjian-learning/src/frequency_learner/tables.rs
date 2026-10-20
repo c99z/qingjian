@@ -1,6 +1,17 @@
 //! 各张表的路径、加载、保存与重建：用户词、按输入串的选择、个人英文词、个人敲错表、个人 n-gram。
 
-use super::*;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
+use foldhash::HashMap;
+use qingjian_core::storage::write_atomic;
+use qingjian_dictionary::{Dictionary, WordList};
+
+use super::{
+    Choice, FrequencyLearner, USER_CHOICES_FILE, USER_ENGLISH_FILE, USER_NGRAM_FILE,
+    USER_TYPOS_FILE, USER_WORD_FREQUENCY, USER_WORDS_FILE, data_lines, parse_counted_pair,
+};
+use crate::error::LearningError;
 
 impl FrequencyLearner {
     /// 个人英文词表文件与词频文件同目录。
@@ -78,30 +89,41 @@ impl FrequencyLearner {
                 continue;
             };
             if count > 0 {
-                self.choices
-                    .entry(input.to_owned())
-                    .or_default()
-                    .insert(text.to_owned(), count);
+                self.choices.entry(input.to_owned()).or_default().insert(
+                    text.to_owned(),
+                    Choice {
+                        count,
+                        // 旧文件只有三列；不能从累计次数猜测过去的选择顺序。
+                        recent: line
+                            .split('\t')
+                            .nth(3)
+                            .and_then(|s| s.parse().ok())
+                            .unwrap_or(0),
+                    },
+                );
             }
         }
         skipped
     }
 
     pub(super) fn save_choices_to(&mut self, path: &Path) -> Result<(), LearningError> {
-        let mut rows: Vec<(&String, &String, &u32)> = self
+        let mut rows: Vec<(&String, &String, &Choice)> = self
             .choices
             .iter()
             .flat_map(|(input, texts)| texts.iter().map(move |(text, count)| (input, text, count)))
             .collect();
         rows.sort_by(|a, b| {
             a.0.cmp(b.0)
-                .then_with(|| b.2.cmp(a.2))
+                .then_with(|| b.2.count.cmp(&a.2.count))
                 .then_with(|| a.1.cmp(b.1))
         });
         write_atomic(path, |file| {
-            writeln!(file, "# 青简按输入串记的选择：输入串\t词\t次数")?;
-            for (input, text, count) in rows {
-                writeln!(file, "{input}\t{text}\t{count}")?;
+            writeln!(
+                file,
+                "# 青简按输入串记的选择：输入串\t词\t次数\t最近选择位图"
+            )?;
+            for (input, text, choice) in rows {
+                writeln!(file, "{input}\t{text}\t{}\t{}", choice.count, choice.recent)?;
             }
             Ok(())
         })?;
@@ -171,9 +193,9 @@ impl FrequencyLearner {
     /// 所有按输入串记的计数减半，去掉减到零的。
     pub(super) fn decay_choices(&mut self) {
         for texts in self.choices.values_mut() {
-            texts.retain(|_, count| {
-                *count /= 2;
-                *count > 0
+            texts.retain(|_, choice| {
+                choice.count /= 2;
+                choice.count > 0
             });
         }
         self.choices.retain(|_, texts| !texts.is_empty());

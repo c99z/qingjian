@@ -42,6 +42,8 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 译词标注、生词记录、输入日志、用户选择学习与个人 n-gram 仍照常工作。
 `Engine::flush_learning_checked` 汇总学习、统计、词汇与个人释义的落盘错误；相应 trait 的 `flush_checked` 由持久化实现报告失败。恢复使用 `replace_user_data` 替换内存存储并清理缓存，避免旧对象重新写回恢复前数据。
 `Engine` 是对外唯一门面，`Translator` / `Learner` trait 在 `engine` 模块；词库是「主词库 + 附加词库（`set_extra_dictionaries`）+ 用户词」的列表；繁体输出（`traditional` 开关与 `traditional_map` 映射）依赖 `ferrous-opencc`（`s2tw`）在出候选与上屏边界转换，内部保持简体。
+- 完整拼音的整词若被词图切分或跨度预选漏掉，`query::competition` 把词级首条完整匹配补成单词路径，与整句按同一静态尺度比较，并参与同条件的神经重排；整词胜出时原整句保留在其后（`SentenceBatch` 的锚点），避免删掉候选后改变后续学习。用户词频仍用封顶的对数加分，不以选过一次作为跨整句的强制优先条件。
+  `sentence_paths` 与补回整词的路径均按这批路径覆盖的拼音键加入同码累计与最近选择加分，只加整段文本一次；加进 `score`，不改 `static_score`，因此异步 / 同步模型重排都保留个人偏好。已在词图内的整词因个人偏好胜出时也保留拆词备选，避免整句插入顺序绕过用户改选（`lubao` 的「录包／陆爆」）。
 - 中英混输的英文词位置：`Engine::set_chinese_first`（配置 `[general] chinese_first`，缺省关）关着时拼音不像话的输入英文排第一（`extras::insert_english`，
   用户老选中文词时仍让中文在前），开着时整句先插、英文词紧随其后排第二（`query_inner` 里两步的先后按开关掉转）；句末英文词并入整句（`EnglishTail`）不受它影响。
   缺省关是回放定的（9241 词 / 269 条英文上屏：缺省开英文首选 82.5% → 7.1%）。
@@ -66,8 +68,13 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 
 ## crates/qingjian-learning
 
-- `FrequencyLearner`：用户选择次数（`user.tsv`）、按输入串记的选择（`user-choices.tsv`，词级排序里同输入串选过的优先）、用户词（`user-words.tsv`，主词库同格式，
+- `FrequencyLearner`：用户选择次数（`user.tsv`）、按输入串记的选择（`user-choices.tsv`，前三列仍是输入 / 词 / 次数，第四列 `u16` 位图保存同输入最近 16 次选择；旧三列读入时最近偏好为 0，不猜顺序）。
+  拼音词级排序用上下文 + `choice_bonus`（0.75 × ln(1 + min(次数, 20))）+ 最近偏好（位权 0.75 衰减归一化，最多 2 分），累计次数不再是硬排序键；
+  撤销选择时删除对应最近位置并紧缩历史，私密 / 关闭学习仍只读不写。形码保留同码累计选择优先。
+  用户词（`user-words.tsv`，主词库同格式，
   Engine 与主词库一起查）、个人英文词（`user-english.tsv`，回车原样上屏的英文词与选过的英文候选，与随包英文词表一起出候选且在前；
+  中文混输的中英文偏好都按同一输入串下的选择比较；明确选英文候选也记 `record_choice`，撤销时退回。
+  个人表独有、全小写且能完整切成拼音的串，在未明确选过英文候选前不参与中文候选 / 补全 / 英文尾段判断；英文模式与随包英文词不受此限制。
   原样上屏的串要像一个词才学：`MIN_ENGLISH_WORD_LETTERS` = 2 到 `MAX_ENGLISH_WORD_LETTERS` = 15 个字母、切不成完整拼音、
   也不能读成「拼音头 + 英文尾」——打不出来时整串上屏的失败拼音学进去会反过来堵住混输那条路，越打不出来学得越多）、
   个人敲错表（`user-typos.tsv`，接受过的 (敲的, 要的) 音节对，词图敲错边与整段纠错的代价按它打折）与个人 n-gram（`user-ngram.tsv`，Core `sentence::UserNgram`，
@@ -137,6 +144,7 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 词图读不通整段时改问 `SentenceScorer::generate`（P2C 走 `P2c::convert`，字级模型返回空），生成的整句插在词图那几条前面。
 「读不通」三条：最优切分里有不完整音节、切分没覆盖到末尾（`woyongvscodexiedaima` 的 `v` 起不了音节）、拼写纠错生效
 （`womaileyigeiphone` 的 `phone` 被当成敲错的 `paone`）。拼音干净的输入一条都不触发，常态零成本；
+生成前还要排除已能匹配整段的中文词：按原样或纠正后的完整切分，对齐同音节数词级候选，全部字母均被覆盖时不请求生成，也不采用旧生成缓存。简拼 `houxuanc` 的「候选词」不会再被生成的「候选C」抢首位；仅匹配前缀或需要补全更多音节的词不阻挡兜底，中英混输仍可生成。
 异步打分器下走同一次 `request_rescoring`（`Job.generate`），按键回调不等它。
 `GENERATE_BEAM` = 5、`GENERATE_MAX_CHARS` = 32、`GENERATED_CANDIDATES` = 2、`MIN_GENERATED_LETTERS` = 6；双拼 / 注音不走（按键不是模型见过的字母）。
 生成的候选没有音节对齐，上屏吃掉整段作用域、不记学习。漏的是「英文词本身就是合法拼音」那种（`zhegeapihenhaoyong` 的 `api` 读成 `a pi`），
@@ -159,6 +167,7 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 （没有这两个文件就退化为一元词频整句）。数据由 `tools/corpus/parquet_to_text.py`（uv 脚本，HF parquet → 简体纯文本）加
 `cargo run --release -p qingjian-dict-convert -- bigram --phrases assets/lexicon/phrases.tsv --phrases assets/lexicon/domain_words.tsv --brand assets/lexicon/brand.tsv --brand assets/lexicon/mixed_words.tsv data/corpus/*.txt` 生成；语料在 `data/corpus/`（gitignore）。
 短语层不当 token 统计（分词时摘掉、统计完按成分合成一元 / 二元，短语得分等于原来两个词的路径，见 `bigram.rs` 模块注释），品牌词按给定次数写进一元与句首二元。
+`add_unigram_priors` 只给未收录词增加显式初始化权重，保留已有词的一元与全部二元计数；不伪造句首或上下文接续。该方法供离线补词工具使用，普通运行时仍直接 mmap 加载。
 
 ## crates/qingjian-platform
 
@@ -190,6 +199,10 @@ Linux 的 XDG 路径（配置/数据/日志/资源根，含 `QINGJIAN_RESOURCES`
 `credentials` 读取显式密钥、配置同目录 `.env` 和环境变量，原子写 0600 文件，不修改进程环境。`backup` 提供 v1 JSON/Base64 归档，SHA256 清单、64 MiB 正文/96 MiB 归档限制、白名单路径、递归凭据脱敏与 `RestoreGuard` 文件回滚；`account` 是账号服务和客户端共用的登录/会话/快照类型，凭据类型不派生 Debug。
 
 ## crates/qingjian-render
+
+竖排向上展开：壳先用 `Renderer::content_size` 量内容区，再按光标与屏幕工作区定位；只有完整放在光标上方时设 `Frame::vertical_reversed`。
+渲染器按原候选下标倒序摆放行（序号、译文与高亮一起移动），页码移到顶部、拼音 / 状态行移到底部，横排与矩阵不受该标记影响；macOS AppKit 与 Windows GDI 退路保持相同行为。
+`examples/preview.rs` 的 `nihao-vertical-reversed` 场景用于核对。
 
 横排矩阵：`Frame::columns` 不为 0 时 `Layout::Horizontal` 走 `renderer/matrix.rs`（列宽用帧里的 `column_ems`，Core `Grid::column_ems` 按整份候选估、
 单格封顶 `MAX_CELL_EMS` = 4 字宽，滚动时窗口不跳；网格下固定一行信息，放不下的截断）；视口与高亮移动在 Core `candidate::layout::Grid`（`GRID_ROWS` = 6），
@@ -317,6 +330,8 @@ DLL 不读文件、不查 mtime。`SessionOpened` 只回过协议版本对得上
 
 产品数据的生成工具，输出到 `data/generated/`（gitignore）。
 
+- `supplement`：读取现成的 `dict.qj` / `lm.qj` 与 `assets/lexicon/modern_words.tsv`（15 条人工常用词，统一初始化权重 100），同时写出 `dict.tsv` / `dict.qj` / `lm.qj`；缺失读音补入词库，缺失词面补一元先验，已有计数不覆盖。补词许可与署名追加到 `.qj` 元数据；坏输入拒绝，可重复执行。没有原始语料时用它更新已有产品数据，完整生成流程最后也需运行一次。
+
 - `lexicon`：从 `assets/lexicon/`（自建词库源：规范字 + 常用词 + THUOCL 领域词）加 Unihan 读音（`data/unihan/Unihan_Readings.txt`）、LLM 多音字标注（`gloss-gen pinyin`，
   结果 `data/generated/pinyin-llm.jsonl`，不进 git）、语料词频（`lm-unigram.tsv`）建基础词库 `dict.tsv`（8.7 万条），并把 THUOCL 领域词按语料次数 < 50 拆成
   `dicts/<领域>.tsv` + `.qj`（11 本、13 万条，`--domain-keep-min`），流程见 `assets/lexicon/QINGJIAN.md`；`--extra-words` 并入人工挑的领域词 `assets/lexicon/domain_words.tsv`。
@@ -347,6 +362,8 @@ DLL 不读文件、不查 mtime。`SessionOpened` 只回过协议版本对得上
 `qingjian-linux-server` 为独立产品 `0.1.0-dev`，装配本地 Engine、词库、释义、频率学习、个人 n-gram、词汇记录与可选输入日志，
 本地整句模型优先加载用户 `~/.local/share/qingjian/models/hanzhang-tongbian/` 或随包 `data/models/hanzhang-tongbian/`，缺失时回退 `models/hanzhang-zhiwei/`；旧用户目录兼容读取。按 `[model] enabled` 在后台加载、停键 80 ms 后重排，Server 每 20 ms 收模型结果，Fcitx5 插件组句期间每 20 ms 取最新候选；云候选、整句补全与释义补全使用 `qingjian-predict` 的后台线程，本地按键只收发内存通道。Linux 不读取应用上下文或历史输入；失焦、隐私变化、清空与关闭云服务时取消旧结果，关闭开关立即生效。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
 默认面板插件仅转换事件，内部中英模式、候选点击、分页和失焦提交都由 Server 决定。
+`dispatch/key/input` 在无组句的普通退格按下时调用 `Engine::note_backspace`，仍返回 Passthrough 由应用删除；释放事件不重复计数。
+Core 在完整删除后同码改选时撤回旧词学习；组句内退格只编辑缓冲区。导航键（含 Tab / 翻页）、向前删除和未组句的 Ctrl / Alt / Win 组合键调用 `break_chain`，不猜测应用中的光标位置与删除范围。会话隔离与隐私静音仍生效。
 `dispatch/key/switching` 读取 `[shortcut] switch_mode`（单击 Shift / Ctrl、Ctrl + Alt + Space），配置重载取消待确认单击；Fcitx5 自身切换不改动。
 `[shortcut] translation_space` 缺省 `shift`，中文组句按修饰键 + 空格调用 Core 上屏高亮候选的第一条译词；缺释义保留组句，普通空格选原词。
 

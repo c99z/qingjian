@@ -1,6 +1,9 @@
 //! 词图读不通整段输入时的兜底候选：让模型直接按按键生成整句。
 
-use super::*;
+use crate::candidate::{Candidate, CandidateKind};
+use crate::engine::{Engine, MIN_GENERATED_LETTERS};
+use crate::parser::Segmentation;
+use crate::sentence;
 
 impl Engine {
     /// 模型直接按整段按键生成的整句候选，最好的在前；不该生成或生成不出来时是空的。
@@ -12,9 +15,8 @@ impl Engine {
     /// - 拼写纠错生效了（`corrected`）——`womaileyigeiphone` 里的 `phone` 被当成敲错的 `paone`，
     ///   纠完切分就「干净」了，前两条都看不出来。纠错本来判的就是「这段不像拼音」，与这里是同一个问题。
     ///
-    /// 三种都说明整段里有一截不是拼音：中英混输的英文段，或者打得太离谱。这时词图只能把那一截
-    /// 硬读成拼音、丢掉后半句、或者纠成别的字，出来的必然是废话（用的哦乘客仍不熟很方便 / 我用 /
-    /// 我买了一给跑呢），生成的几十毫秒花得值。
+    /// 先排除词库已能匹配整段的情况：`houxuanc` 的末尾 c 是「词」的简拼，不能只因它不完整就
+    /// 让模型生成「候选C」挤掉「候选词」。只覆盖输入前缀的词不挡住生成，中英混输仍可兜底。
     ///
     /// 拼音本身干净的输入不走这条路：词图在那儿可靠，而且每次查询都生成会把按键回调拖垮。
     /// 漏网的是「英文词本身就是合法拼音、连纠错都不用」那种（`zhegeapihenhaoyong` 的 `api` 读成 `a pi`），
@@ -26,6 +28,7 @@ impl Engine {
         best: &Segmentation,
         keys: &str,
         corrected: bool,
+        items: &[Candidate],
     ) -> Vec<Candidate> {
         if keys.len() < MIN_GENERATED_LETTERS
             || self.shuangpin.is_some()
@@ -37,6 +40,16 @@ impl Engine {
         // 上面已经保证整段都是小写字母，没有 `'`，`letters()` 与字节长度可比
         let covers_all = best.letters() == keys.len();
         if best.incomplete_count() == 0 && covers_all && !corrected {
+            return Vec::new();
+        }
+        let typed = best.joined("");
+        if (covers_all || corrected)
+            && items.iter().any(|candidate| {
+                candidate.kind == CandidateKind::Chinese
+                    && candidate.syllables.len() == best.syllables.len()
+                    && self.align(&typed, &candidate.syllables).consumed == typed.len()
+            })
+        {
             return Vec::new();
         }
         let mut out: Vec<Candidate> = Vec::new();

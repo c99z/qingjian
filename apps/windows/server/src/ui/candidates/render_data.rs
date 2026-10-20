@@ -23,6 +23,9 @@ pub(crate) struct RenderData {
     /// 候选行。
     pub(super) rows: Vec<Row>,
 
+    /// 竖排向上展开时倒序展示，由窗口定位决定。
+    pub(super) vertical_reversed: bool,
+
     /// 高亮行下标（页内）。
     pub(super) highlight: usize,
 
@@ -52,6 +55,7 @@ impl RenderData {
             preedit: Vec::new(),
             cursor: 0,
             rows: Vec::new(),
+            vertical_reversed: false,
             highlight: usize::MAX,
             footer: None,
             sentence: None,
@@ -103,6 +107,7 @@ impl RenderData {
         qingjian_render::Frame {
             preedit,
             rows: self.rows.clone(),
+            vertical_reversed: self.vertical_reversed,
             // 协议里 usize::MAX 表示不高亮。
             highlighted: (self.highlight != usize::MAX).then_some(self.highlight),
             columns: 0,

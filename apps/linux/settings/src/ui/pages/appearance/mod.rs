@@ -97,7 +97,7 @@ impl AppearancePage {
             move |index| ctx_layout.set("general", "layout", LayoutMode::ALL[index as usize].key()),
             &syncing,
         );
-        layout.set_subtitle("竖排一行一个候选；横排排成一行。应用后生效");
+        layout.set_subtitle("竖排一行一个候选；横排中文在上、释义在下。应用后生效");
         arrangement.add(&layout);
         page.add(&arrangement);
 
@@ -145,7 +145,7 @@ impl AppearancePage {
         comment.set_title("释义样式");
         comment.set_description(Some(
             "释义的颜色与字号比例写在主题里：定制会在应用时把所选主题复制成青简管理的「青简定制」主题再改，\
-             原主题不动",
+             原主题不动。横排的中文与释义共用候选字号和颜色；独立释义样式用于竖排",
         ));
         let factor_labels: Vec<&str> = FACTOR_OPTIONS.iter().map(|(label, _)| *label).collect();
         let factor = combo_row("释义字号比例", &factor_labels, |_| {}, &syncing);

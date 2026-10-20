@@ -1,4 +1,4 @@
-//! 竖排：一行一个候选，序号 / 候选词 / 译文三列，页码在右下角。
+//! 竖排：序号 / 候选词 / 译文三列；向上展开时倒序展示，页码移到顶部。
 
 use super::columns::Columns;
 use super::{Metrics, Renderer};
@@ -65,18 +65,40 @@ impl Renderer {
         let text_x = left + m.padding() + columns.index_width + m.column_gap();
         let annotation_x = text_x + columns.text_width + m.column_gap();
         let text_height = m.px(m.theme.text_font.line_height);
+        let footer = frame.footer.as_deref().map(|footer| {
+            let size = self.measure(footer, &m.index_style());
+            (footer, size)
+        });
+        if frame.vertical_reversed
+            && let Some((footer, size)) = &footer
+        {
+            self.draw_text(
+                canvas,
+                footer,
+                &m.index_style(),
+                left + content_width - m.padding() - size.width,
+                y + m.row_padding(),
+            );
+            y += size.height + m.row_padding();
+        }
         for (i, row) in frame.rows.iter().enumerate() {
+            let visual_index = if frame.vertical_reversed {
+                frame.rows.len() - 1 - i
+            } else {
+                i
+            };
+            let row_y = y + columns.row_height * visual_index as f32;
             if Some(i) == frame.highlighted {
                 self.fill_highlight(
                     canvas,
                     m,
                     left + m.padding() / 2.0,
-                    y,
+                    row_y,
                     content_width - m.padding(),
                     columns.row_height,
                 );
             }
-            let top = y + m.row_padding();
+            let top = row_y + m.row_padding();
             let small_offset = m.small_offset(text_height);
             self.draw_text(
                 canvas,
@@ -91,17 +113,17 @@ impl Renderer {
                 let style = m.annotation_style(m.tone_color(*tone));
                 x += self.draw_text(canvas, segment, &style, x, top + small_offset);
             }
-            y += columns.row_height;
         }
-        if let Some(footer) = frame.footer.as_deref() {
+        if !frame.vertical_reversed
+            && let Some((footer, size)) = footer
+        {
             let style = m.index_style();
-            let size = self.measure(footer, &style);
             self.draw_text(
                 canvas,
                 footer,
                 &style,
                 left + content_width - m.padding() - size.width,
-                y + m.row_padding(),
+                y + columns.row_height * frame.rows.len() as f32 + m.row_padding(),
             );
         }
     }

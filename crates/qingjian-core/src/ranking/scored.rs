@@ -33,14 +33,12 @@ pub struct Scored<'a> {
 /// 与 [`SortKey`] 的前几项同序，只是不拿文本做最后的平手项（预选边界上的平手谁留下无所谓）。
 pub type PreselectKey = u128;
 
-/// 排序键，越小越靠前。元组的顺序即排序规则，见模块文档；第五项是同输入串下的选择次数，
-/// 第六项是上下文得分（毫分，整数才能比较）。文本借自词库，键可以脱离 `Scored` 存放。
+/// 排序键，越小越靠前。结构项之后比较含个人偏好的上下文得分（毫分）。
 pub type SortKey<'a> = (
     Reverse<bool>,
     Reverse<usize>,
     usize,
     Reverse<bool>,
-    Reverse<u32>,
     Reverse<i64>,
     bool,
     usize,
@@ -72,14 +70,13 @@ impl<'a> Scored<'a> {
             | (0xFF - chars)
     }
 
-    /// `choice` 是同输入串下的选择次数，`score` 是上下文得分（log 概率，已含用户加分与模糊音 / 敲错扣分）。
-    pub(super) fn key(&self, choice: u32, score: f64) -> SortKey<'a> {
+    /// `score` 是上下文得分，已含个人偏好加分与模糊音 / 敲错扣分。
+    pub(super) fn key(&self, score: f64) -> SortKey<'a> {
         (
             Reverse(self.hit.exact),
             Reverse(self.coverage),
             self.abbreviated,
             Reverse(self.full_last),
-            Reverse(choice),
             Reverse((score * 1000.0).round() as i64),
             self.altered(),
             self.hit.text.chars().count(),

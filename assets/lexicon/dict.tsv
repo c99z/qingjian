@@ -92826,3 +92826,19 @@ H股	h gu	300
 X光	x guang	800
 X射线	x she xian	2000
 T台	t tai	1500
+# 人工补词（modern_words.tsv，GPL-3.0-or-later）：权重是初始化先验，不是语料计数。
+内卷	nei juan	100
+摆烂	bai lan	100
+靠谱	kao pu	100
+拔草	ba cao	100
+打工人	da gong ren	100
+显眼包	xian yan bao	100
+搭子	da zi	100
+异步	yi bu	100
+破防	po fang	100
+躺平	tang ping	100
+种草	zhong cao	100
+点赞	dian zan	100
+短视频	duan shi pin	100
+情绪价值	qing xu jia zhi	100
+候选词	hou xuan ci	100

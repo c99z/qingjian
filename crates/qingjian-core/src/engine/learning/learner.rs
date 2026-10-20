@@ -13,13 +13,18 @@ pub trait Learner: Send {
     fn weight(&self, text: &str) -> u32;
 
     /// 用户在输入串 `input`（候选覆盖的那段拼音，不含分隔符）下选了 `text`。
-    /// 词级排序里同一输入串下选过的词排最前（`mgs` 选过 美国式，下次 `mgs` 它就是首选），与不分输入的 [`Self::weight`] 分开记：
+    /// 词级排序里作为个人偏好加分，与不分输入的 [`Self::weight`] 分开记：
     /// `ba` 下选的是 吧，`bazhege` 下选的是 把，混在一起数就分不清。
     fn record_choice(&mut self, _input: &str, _text: &str) {}
 
     /// `text` 在输入串 `input` 下被选过的次数，没记录返回 0。
     fn choice_weight(&self, _input: &str, _text: &str) -> u32 {
         0
+    }
+
+    /// 同一输入串下最近选择的偏好，范围 0 到 1；没有顺序记录时返回 0。
+    fn recent_choice_weight(&self, _input: &str, _text: &str) -> f64 {
+        0.0
     }
 
     /// 用户对输入串 `input` 按了回车原样上屏，而当时拼写纠错正生效：这个串就是要原样打的，以后不纠。

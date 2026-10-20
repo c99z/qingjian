@@ -53,3 +53,5 @@
 英文来源为ESDB、CSpell和typos，许可声明见[英文sources](05_english/README.md#sources)。
 
 本数据包不以单一许可证覆盖所有来源。上游文件、版本及质量参考见相邻的[资源归档](../输入法词库资源_2026-09-05/README.md)。
+
+青简自行补充的常用词在 `modern_words.tsv`，由项目独立编写，按 GPL-3.0-or-later 分发；其中权重是初始化先验，不是语料计数。生成方式见 [QINGJIAN.md](QINGJIAN.md)。

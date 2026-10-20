@@ -5,12 +5,11 @@
 //! 2. 覆盖输入字母多者优先（`kaif` → 开发者 排在 开 前）
 //! 3. 切分里非末尾的简拼音节少者优先（`kaifa` 按 `kai fa` 读的 开放 排在按 `kai f a` 读的 开放啊 前）
 //! 4. 最后一个音节完整匹配优先（`kaifa` → 开发 排在 开放 前）
-//! 5. 同一输入串下用户选过的次数（Learner 的 `choice_weight`：`mgs` 选过 美国式，下次 `mgs` 它就是首选）
-//! 6. 上下文得分：语言模型给的 `log P(词 | 上一个上屏的词)`（个人 bigram 插值，模型不认识的按词库词频兜底并扣分，
-//!    见 `sentence::transition_log_prob`）加用户选择次数的加分（[`weight_bonus`]，对数且封顶），模糊音命中扣 ln 2、
+//! 5. 上下文得分：语言模型给的 `log P(词 | 上一个上屏的词)`（个人 bigram 插值，模型不认识的按词库词频兜底并扣分，
+//!    见 `sentence::transition_log_prob`）加累计选择（[`weight_bonus`] / [`choice_bonus`]）与最近选择的有限加分，模糊音命中扣 ln 2、
 //!    敲错变体命中扣那类敲错的代价（`correction::TypoKind::cost`，个人敲错表打折）。
 //!    这样 `ba` 在「做了」后面出 吧、句首出 把；纯词频排序两处都只能出同一个
-//! 7. 敲的原音节优先，词长短者优先，最后按字符串稳定排序保证结果可复现
+//! 6. 敲的原音节优先，词长短者优先，最后按字符串稳定排序保证结果可复现
 //!
 //! 词库静态词频只用于预选（命中太多时先按词频砍到够排的量）与兜底。
 
@@ -28,6 +27,14 @@ pub const WEIGHT_BONUS: f64 = 0.5;
 
 /// 加分里计入的选择次数上限。
 pub const WEIGHT_CAP: u32 = 20;
+
+/// 同输入串下的长期偏好加分；封顶防止旧次数永远压住语境。
+pub fn choice_bonus(count: u32) -> f64 {
+    0.75 * (1.0 + f64::from(count.min(WEIGHT_CAP))).ln()
+}
+
+/// 最近选择的加分上限，偏好本身由 Learner 在 0 到 1 之间给出。
+pub const RECENT_CHOICE_BONUS: f64 = 2.0;
 
 /// 模糊音命中扣的分（词频减半）。敲错变体的代价见 `correction::TypoKind`。
 pub const FUZZY_PENALTY: f64 = std::f64::consts::LN_2;
@@ -61,8 +68,8 @@ pub fn rank(
         .drain(..)
         .map(|item| {
             let (choice, log_prob) = context(&item);
-            let score = log_prob + weight_bonus(item.weight) - item.penalty;
-            (item.key(choice, score), item)
+            let score = log_prob + choice_bonus(choice) + weight_bonus(item.weight) - item.penalty;
+            (item.key(score), item)
         })
         .collect();
     keyed.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -148,14 +155,14 @@ mod tests {
         rank(&mut items, usize::MAX, by_context);
         let texts: Vec<&str> = items.iter().map(|s| s.hit.text).collect();
         assert_eq!(texts, ["吧", "把"]);
-        // 同一输入串下选过的压过上下文
+        // 少量选择不应压过强上下文
         rank(&mut items, usize::MAX, |s| {
             (
                 u32::from(s.hit.text == "把"),
                 if s.hit.text == "吧" { -1.0 } else { -6.0 },
             )
         });
-        assert_eq!(items[0].hit.text, "把");
+        assert_eq!(items[0].hit.text, "吧");
         // 同分时用户选过的、非模糊音的靠前
         for item in &mut items {
             item.weight = u32::from(item.hit.text == "把") * 3;

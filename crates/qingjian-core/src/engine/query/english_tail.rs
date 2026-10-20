@@ -1,4 +1,12 @@
-use super::*;
+use crate::candidate::{Candidate, CandidateKind};
+use crate::engine::{
+    ENGLISH_COMPLETIONS, ENGLISH_SWITCH_PENALTY, ENGLISH_ZIPF_FLOOR, Engine, Learner,
+    MIN_COMPLETION_LETTERS, MIN_ENGLISH_TAIL_HEAD_LETTERS, MIN_ENGLISH_TAIL_LETTERS,
+    MIN_PINYIN_LIKE_TAIL_LETTERS,
+};
+use crate::parser::Segmentation;
+use crate::sentence::Conversion;
+use crate::{correction, parser};
 
 /// 「拼音头 + 英文尾」的切法：`woxiangxuehaorust` 切成头 `woxiangxuehao` 与尾 rust。
 /// 见 [`Engine::split_english_tail`]。
@@ -69,9 +77,12 @@ impl Engine {
                 return None;
             }
             if scope.len() >= MIN_COMPLETION_LETTERS
-                && lists
-                    .iter()
-                    .any(|words| !words.complete(scope, 1).is_empty())
+                && lists.iter().any(|words| {
+                    words
+                        .complete(scope, ENGLISH_COMPLETIONS)
+                        .iter()
+                        .any(|word| self.mixed_english_allowed(word))
+                })
             {
                 return None;
             }
@@ -83,6 +94,9 @@ impl Engine {
             let tail = &scope[head_len..];
             let words = lists.iter().find(|words| words.get(tail).is_some())?;
             let word = words.get(tail)?;
+            if !self.mixed_english_allowed(word) {
+                return None;
+            }
             let acronym = word.bytes().any(|b| b.is_ascii_uppercase());
             let known = personal.is_some_and(|words| words.get(tail).is_some());
             if len == MIN_ENGLISH_TAIL_LETTERS && !acronym && !known {

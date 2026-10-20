@@ -75,6 +75,9 @@ struct Mock {
             std::string outcome = "Passthrough";
             if (event.contains("Key") && !event.at("Key").at("release").get<bool>() && event.at("Key").at("event").at("character") == "n") {
                 frame = Json::parse(R"({"preedit":[{"text":"ni","kind":"Typed"}],"cursor":2,"candidates":{"items":[{"text":"","translation":null},{"text":"","translation":null},{"text":"你好","translation":{"senses":[{"text":"hello","fresh":true}]}}]},"highlight":2,"page":0,"page_count":2,"notice":null})");
+                frame["layout"] = mode == "horizontal" || mode == "horizontal-plain" ? "horizontal" : "vertical";
+                if (mode == "horizontal") frame["candidates"]["items"][1]["text"] = "你";
+                if (mode == "horizontal-plain") frame["candidates"]["items"][2]["translation"] = nullptr;
                 outcome = "Consumed";
             }
             if (event.contains("Candidate")) {

@@ -30,6 +30,10 @@ impl Router {
             return effect;
         }
         if event.modifiers.has_command_key() {
+            if !self.composing() {
+                // 应用快捷键可能移动光标、剪切或成段删除，无法推断删掉了几个字。
+                self.engine.break_chain();
+            }
             return Effect::Passthrough;
         }
         let Some(c) = event.character.filter(|c| !c.is_control()) else {
@@ -97,9 +101,21 @@ impl Router {
     /// 退格 / Esc / 回车 / Tab / 方向键；没在组句时都交还应用。
     fn apply_function_key(&mut self, event: &KeyEvent) -> Effect {
         if !self.composing() {
-            // 回车交给应用：文本流里是一个段落边界（macOS 壳同样记）
-            if event.virtual_key == codes::RETURN {
-                self.engine.note_passthrough('\n');
+            match event.virtual_key {
+                // 只通知删除事实，按键仍交给应用执行；释放事件不会进到这里。
+                codes::BACK => self.engine.note_backspace(),
+                codes::RETURN => self.engine.note_passthrough('\n'),
+                codes::LEFT
+                | codes::RIGHT
+                | codes::UP
+                | codes::DOWN
+                | codes::HOME
+                | codes::END
+                | codes::PRIOR
+                | codes::NEXT
+                | codes::TAB
+                | codes::DELETE => self.engine.break_chain(),
+                _ => {}
             }
             return Effect::Passthrough;
         }

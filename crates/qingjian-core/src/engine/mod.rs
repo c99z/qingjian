@@ -70,7 +70,7 @@ use crate::fuzzy::{Expanded, FuzzyRules};
 use crate::history::InputHistory;
 use crate::parser::{self, ParseError, Segmentation};
 use crate::punctuation::Punctuation;
-use crate::ranking::{self, Scored};
+use crate::ranking::Scored;
 use crate::sentence::{
     self, Conversion, Interpolation, LanguageModel, NoLanguageModel, Personal, SentenceScorer,
 };

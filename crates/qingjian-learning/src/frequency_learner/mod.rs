@@ -1,5 +1,8 @@
+mod choice;
 mod learner_impl;
 mod tables;
+
+use choice::Choice;
 
 use std::collections::BTreeMap;
 
@@ -64,8 +67,8 @@ pub struct FrequencyLearner {
     /// 个人 n-gram 自上次保存后是否有变化。
     ngram_dirty: bool,
 
-    /// 输入串 → (词 → 在这个输入串下被选的次数)。
-    choices: HashMap<String, HashMap<String, u32>>,
+    /// 输入串 → (词 → 累计选择与最近选择位置)。
+    choices: HashMap<String, HashMap<String, Choice>>,
 
     /// 按输入串记的选择自上次保存后是否有变化。
     choices_dirty: bool,
@@ -219,3 +222,6 @@ fn note_skipped(path: &Path, skipped: usize) {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod recent_tests;

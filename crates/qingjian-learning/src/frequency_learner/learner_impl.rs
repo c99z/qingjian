@@ -1,6 +1,6 @@
 //! `Learner` trait 的实现：Engine 上屏 / 撤销 / 删候选时调进来的记账。
 
-use super::{FrequencyLearner, MAX_CHOICE_ENTRIES, RAW_MARK};
+use super::{Choice, FrequencyLearner, MAX_CHOICE_ENTRIES, RAW_MARK};
 use qingjian_core::sentence::{Context, UserNgram};
 use qingjian_core::{Candidate, Forgotten, Learner};
 use qingjian_dictionary::{Dictionary, WordList};
@@ -20,12 +20,13 @@ impl Learner for FrequencyLearner {
         if input.is_empty() || text.is_empty() {
             return;
         }
-        *self
-            .choices
-            .entry(input.to_owned())
-            .or_default()
-            .entry(text.to_owned())
-            .or_default() += 1;
+        let texts = self.choices.entry(input.to_owned()).or_default();
+        for choice in texts.values_mut() {
+            choice.recent <<= 1;
+        }
+        let choice = texts.entry(text.to_owned()).or_default();
+        choice.count = choice.count.saturating_add(1);
+        choice.recent |= 1;
         self.choices_dirty = true;
         if self.choice_count() > MAX_CHOICE_ENTRIES {
             self.decay_choices();
@@ -37,8 +38,19 @@ impl Learner for FrequencyLearner {
         self.choices
             .get(input)
             .and_then(|texts| texts.get(text))
-            .copied()
-            .unwrap_or(0)
+            .map_or(0, |choice| choice.count)
+    }
+
+    fn recent_choice_weight(&self, input: &str, text: &str) -> f64 {
+        let Some(texts) = self.choices.get(input) else {
+            return 0.0;
+        };
+        let recent = texts.get(text).map_or(0, |choice| choice.recent);
+        if recent == 0 {
+            return 0.0;
+        }
+        let history = texts.values().fold(0, |mask, choice| mask | choice.recent);
+        Choice::recent_score(recent) / Choice::recent_score(history)
     }
 
     fn record_raw(&mut self, input: &str) {
@@ -60,10 +72,16 @@ impl Learner for FrequencyLearner {
         let Some(texts) = self.choices.get_mut(input) else {
             return;
         };
-        if let Some(count) = texts.get_mut(text) {
-            *count = count.saturating_sub(1);
-            if *count == 0 {
+        if let Some(choice) = texts.get_mut(text) {
+            let position = choice.recent.trailing_zeros();
+            choice.count = choice.count.saturating_sub(1);
+            if choice.count == 0 {
                 texts.remove(text);
+            }
+            if position < u16::BITS {
+                for choice in texts.values_mut() {
+                    choice.remove_recent(position);
+                }
             }
             self.choices_dirty = true;
         }
@@ -201,11 +219,12 @@ impl Learner for FrequencyLearner {
     }
 
     fn forget_english(&mut self, word: &str) -> bool {
-        if self.english.remove(&word.to_ascii_lowercase()).is_none() {
+        let Some((stored, _)) = self.english.remove(&word.to_ascii_lowercase()) else {
             return false;
-        }
+        };
         self.english_dirty = true;
         self.rebuild_english();
+        self.forget(&stored);
         true
     }
 

@@ -20,8 +20,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::{Error, PCWSTR, Result, w};
 
-use qingjian_platform::ThemeMode;
 use qingjian_platform::protocol::Frame;
+use qingjian_platform::{LayoutMode, ThemeMode};
 
 pub(crate) use self::render_data::RenderData;
 use self::theme::Theme;
@@ -122,18 +122,21 @@ impl CandidateWindow {
     pub(crate) fn show(&self, anchor: RECT) {
         self.sync_theme(anchor);
         let rendered = {
-            let data = self.data.borrow();
+            let mut data = self.data.borrow_mut();
             self.painter.borrow_mut().as_mut().and_then(|painter| {
-                painter.render_frame(
-                    &data.render_frame(),
-                    data.layout,
-                    self.dark.get(),
-                    self.dpi.get(),
-                )
+                let mut frame = data.render_frame();
+                let content =
+                    painter.content_size(&frame, data.layout, self.dark.get(), self.dpi.get());
+                let (position, above) = place(anchor, content);
+                data.vertical_reversed = above && data.layout == LayoutMode::Vertical;
+                frame.vertical_reversed = data.vertical_reversed;
+                painter
+                    .render_frame(&frame, data.layout, self.dark.get(), self.dpi.get())
+                    .map(|rendered| (rendered, position))
             })
         };
         let updated = match rendered {
-            Some(rendered) => {
+            Some((rendered, (content_x, content_y))) => {
                 let content = (
                     rendered.content_width as i32,
                     rendered.content_height as i32,
@@ -142,7 +145,6 @@ impl CandidateWindow {
                     self.hide();
                     return;
                 }
-                let (content_x, content_y) = place(anchor, content);
                 layered::present(
                     self.hwnd,
                     &rendered.pixmap,
@@ -168,8 +170,9 @@ impl CandidateWindow {
         if content.0 <= 0 || content.1 <= 0 {
             return Err(Error::from(E_INVALIDARG));
         }
-        let (content_x, content_y) = place(anchor, content);
-        let data = self.data.borrow();
+        let ((content_x, content_y), above) = place(anchor, content);
+        let mut data = self.data.borrow_mut();
+        data.vertical_reversed = above && data.layout == LayoutMode::Vertical;
         layered::composite(
             self.hwnd,
             &Layered {
@@ -247,24 +250,28 @@ impl Drop for CandidateWindow {
 }
 
 /// 内容左上角：贴光标下方，放不下放上方，再放不下贴屏幕内；都夹在所在显示器工作区里。
-fn place(anchor: RECT, content: (i32, i32)) -> (i32, i32) {
+fn place(anchor: RECT, content: (i32, i32)) -> ((i32, i32), bool) {
     let work = monitor::work_area_near(POINT {
         x: anchor.left,
         y: anchor.top,
     });
+    place_in_work_area(anchor, content, work)
+}
+
+fn place_in_work_area(anchor: RECT, content: (i32, i32), work: RECT) -> ((i32, i32), bool) {
     let x = anchor
         .left
         .clamp(work.left, (work.right - content.0).max(work.left));
     let below = anchor.bottom + CARET_GAP;
     let above = anchor.top - CARET_GAP - content.1;
-    let y = if below + content.1 <= work.bottom {
-        below
+    let (y, reversed) = if below + content.1 <= work.bottom {
+        (below, false)
     } else if above >= work.top {
-        above
+        (above, true)
     } else {
-        (work.bottom - content.1).max(work.top)
+        ((work.bottom - content.1).max(work.top), false)
     };
-    (x, y)
+    ((x, y), reversed)
 }
 
 /// 分层窗口无需 `WM_PAINT`，全交默认处理。

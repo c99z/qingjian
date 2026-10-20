@@ -3,6 +3,7 @@
 use super::*;
 
 mod code;
+mod competition;
 mod converting;
 mod english_tail;
 mod generating;
@@ -10,6 +11,7 @@ mod lookup;
 mod modes;
 mod phonetic;
 mod result;
+mod sentence_batch;
 mod snapshot;
 
 pub(crate) use english_tail::EnglishTail;

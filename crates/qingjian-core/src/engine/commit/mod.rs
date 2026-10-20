@@ -154,6 +154,8 @@ impl Engine {
                 if candidate.kind == CandidateKind::English {
                     self.learner.record(candidate);
                     self.learner.learn_english(&candidate.text);
+                    self.learner
+                        .record_choice(self.composition.scope(), &candidate.text);
                 }
                 self.whole_scope()
             }
@@ -262,6 +264,7 @@ impl Engine {
                 | CandidateKind::Code
                 | CandidateKind::Cloud
                 | CandidateKind::Sentence
+                | CandidateKind::English
         );
         let commit = if learned {
             LastCommit {
@@ -270,7 +273,10 @@ impl Engine {
                 input,
                 chosen: matches!(
                     candidate.kind,
-                    CandidateKind::Chinese | CandidateKind::Code | CandidateKind::Cloud
+                    CandidateKind::Chinese
+                        | CandidateKind::Code
+                        | CandidateKind::Cloud
+                        | CandidateKind::English
                 )
                 .then(|| candidate.text.clone()),
                 transitions: std::mem::take(&mut self.recording),
@@ -290,7 +296,7 @@ impl Engine {
 
     /// 一段拼音分几次选完了（`jidiaole` 先选 挤、剩下的走整句 掉了）：这几个词合起来就是用户对这段拼音的答案。
     /// 记一次「整段拼音 → 合成词」的选择；选到 [`AUTO_WORD_THRESHOLD_SAME_BUFFER`] 次、词库里没有、
-    /// 不超过 [`AUTO_WORD_MAX_CHARS`] 字就造成用户词，下次整段打出来它直接排第一。返回记下的选择，撤销时退回。
+    /// 不超过 [`AUTO_WORD_MAX_CHARS`] 字就造成用户词，后续按个人偏好参与排序。返回记下的选择，撤销时退回。
     pub(super) fn finish_buffer(&mut self) -> Option<(String, String)> {
         let words = self.chain.buffer_words();
         if words.len() < 2 {

@@ -239,6 +239,50 @@ impl BigramModel {
         self.successors.len()
     }
 
+    /// 为模型尚未收录的词补一元先验，已有计数与二元接续原样保留。
+    /// `count` 是显式初始化权重，不代表重新统计了语料；不生成没有语料依据的二元关系。
+    /// 重复词只取第一次，零权重、空词和句首标记拒绝，校验失败不修改模型。
+    pub fn add_unigram_priors(&mut self, priors: &[(&str, u32)]) -> Result<usize, LmError> {
+        let mut words = self.words.to_string();
+        let mut entries: Vec<WordEntry> = self.entries.iter().copied().collect();
+        let mut seen = HashSet::new();
+        for (index, &(text, count)) in priors.iter().enumerate() {
+            if text.is_empty() || text == SENTENCE_START || count == 0 {
+                return Err(LmError::Format {
+                    file: "word priors",
+                    line: index + 1,
+                    reason: "expected non-empty word and positive count, not a sentence marker",
+                });
+            }
+            let text_len =
+                u16::try_from(text.len()).map_err(|_| LmError::Corrupt("prior word too long"))?;
+            if self.word_id(text).is_some() || !seen.insert(text) {
+                continue;
+            }
+            let text_start =
+                u32::try_from(words.len()).map_err(|_| LmError::Corrupt("word arena too large"))?;
+            entries.push(WordEntry {
+                text_start,
+                count,
+                text_len,
+                reserved: 0,
+            });
+            words.push_str(text);
+        }
+        let added = entries.len() - self.entries.len();
+        if added == 0 {
+            return Ok(0);
+        }
+        let mut offsets = self.offsets.to_vec();
+        offsets.resize(entries.len() + 1, self.successors.len() as u32);
+        self.index = Table::Owned(build_index(&words, &entries));
+        self.words = Text::Owned(words);
+        self.entries = Table::Owned(entries);
+        self.offsets = Table::Owned(offsets);
+        self.finish();
+        Ok(added)
+    }
+
     /// `.qj` 里的来历；TSV 解析的返回 `None`。
     pub fn metadata(&self) -> Option<&Metadata> {
         self.metadata.as_ref()
@@ -327,6 +371,43 @@ mod tests {
         let alone = model.log_prob(Some("火星"), "想").unwrap();
         assert!((alone - (30.0_f64 / 101.0).ln()).abs() < 1e-9);
         assert_eq!(model.log_prob(Some("我"), "火星"), None);
+    }
+
+    #[test]
+    fn priors_only_add_missing_unigrams_and_preserve_existing_transitions() {
+        let mut model = BigramModel::parse(UNIGRAM, BIGRAM).unwrap();
+        let old_pairs = model.successors.as_bytes().to_vec();
+        assert_eq!(
+            model
+                .add_unigram_priors(&[("我", 999), ("内卷", 100), ("内卷", 200)])
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            model.entries[model.word_id("我").unwrap() as usize].count,
+            50
+        );
+        assert_eq!(
+            model.entries[model.word_id("内卷").unwrap() as usize].count,
+            100
+        );
+        assert_eq!(model.successors.as_bytes(), old_pairs);
+        assert_eq!(model.offsets.len(), model.word_count() + 1);
+        assert!(
+            (model.log_prob(None, "内卷").unwrap() - (0.2_f64 * 100.0 / 201.0).ln()).abs() < 1e-12
+        );
+        assert!(model.log_prob(Some("内卷"), "我").unwrap().is_finite());
+        assert_eq!(model.add_unigram_priors(&[("内卷", 100)]).unwrap(), 0);
+    }
+
+    #[test]
+    fn invalid_priors_do_not_partially_modify_the_model() {
+        let mut model = BigramModel::parse(UNIGRAM, BIGRAM).unwrap();
+        for invalid in [("", 100), ("坏词", 0), (SENTENCE_START, 100)] {
+            assert!(model.add_unigram_priors(&[("内卷", 100), invalid]).is_err());
+            assert_eq!(model.word_count(), 5);
+            assert!(model.log_prob(None, "内卷").is_none());
+        }
     }
 
     #[test]

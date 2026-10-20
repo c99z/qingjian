@@ -16,6 +16,9 @@ pub struct Frame {
     /// 候选行。
     pub rows: Vec<Row>,
 
+    /// 竖排窗口在光标上方时倒序展示，拼音行靠底、页码靠顶；不改变候选下标。
+    pub vertical_reversed: bool,
+
     /// 高亮行；`None` 不高亮。
     pub highlighted: Option<usize>,
 
