@@ -1,7 +1,10 @@
 //! 日志页：输入日志开关与文件位置、运行日志级别与目录。
 //! 清空操作由服务协调，避免旧日志缓冲在截断之后重新写回。
 
-use adw::prelude::*;
+use adw::prelude::{
+    ActionRowExt, AdwDialogExt, AlertDialogExt, AlertDialogExtManual, ButtonExt, Cast, ComboRowExt,
+    PreferencesGroupExt, PreferencesPageExt, PreferencesRowExt, WidgetExt,
+};
 use qingjian_platform::dirs::linux;
 use qingjian_platform::{Config, LogLevel};
 
@@ -19,6 +22,8 @@ pub struct LogsPage {
     learning: adw::SwitchRow,
 
     log_level: adw::ComboRow,
+
+    organizer: super::organizer::OrganizerControls,
 
     /// 字段路径 → 行，校验失败时标注用。
     fields: Vec<(&'static str, adw::PreferencesRow)>,
@@ -50,7 +55,7 @@ impl LogsPage {
         let ctx_input = ctx.clone();
         let input_log = switch_row(
             "记录输入日志",
-            "每次上屏记一行（敲的键、看到的候选、选了什么），只写在这台电脑上，不上传",
+            "每次上屏记一行；日志保存在本机。另行开启夜间整理后，仅发送筛选后的重复词证据",
             move |on| ctx_input.set("general", "input_log", on),
             &syncing,
         );
@@ -110,6 +115,9 @@ impl LogsPage {
         input.add(&clear_row);
         page.add(&input);
 
+        let organizer = super::organizer::OrganizerControls::new(ctx, &syncing);
+        page.add(&organizer.group);
+
         let runtime = adw::PreferencesGroup::new();
         runtime.set_title("运行日志");
         let level_labels: Vec<&str> = LogLevel::ALL.iter().map(|level| level.label()).collect();
@@ -137,17 +145,19 @@ impl LogsPage {
         runtime.add(&dir_row);
         page.add(&runtime);
 
-        let fields = vec![
+        let mut fields = vec![
             ("general.input_log", input_log.clone().upcast()),
             ("general.learning", learning.clone().upcast()),
             ("general.log_level", log_level.clone().upcast()),
         ];
+        fields.extend(organizer.fields());
         Self {
             page,
             syncing,
             input_log,
             learning,
             log_level,
+            organizer,
             fields,
         }
     }
@@ -184,6 +194,7 @@ impl SettingsPage for LogsPage {
         self.syncing.set(true);
         self.input_log.set_active(config.general.input_log);
         self.learning.set_active(config.general.learning);
+        self.organizer.refresh(config);
         self.log_level.set_selected(
             LogLevel::ALL
                 .iter()

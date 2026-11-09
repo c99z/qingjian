@@ -3265,6 +3265,7 @@ dependencies = [
 name = "qingjian-linux-server"
 version = "0.1.6-dev"
 dependencies = [
+ "jiff",
  "libc",
  "qingjian-core",
  "qingjian-dictionary",

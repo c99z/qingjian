@@ -12,6 +12,7 @@ mod config;
 mod connection;
 mod error;
 mod gloss;
+mod organization;
 mod prompt;
 mod worker;
 
@@ -20,3 +21,4 @@ pub use config::PredictConfig;
 pub use connection::{ConnectionReport, ConnectionTest};
 pub use error::PredictError;
 pub use gloss::CloudGlossFiller;
+pub use organization::{OrganizationReply, organize_words};

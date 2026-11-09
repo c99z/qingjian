@@ -9,6 +9,7 @@ mod key;
 mod linux;
 mod maintenance;
 mod message;
+mod organizer;
 mod reload;
 mod rescore;
 mod session;
@@ -85,6 +86,8 @@ pub struct Router {
     reload: Option<ConfigReload>,
 
     cloud: cloud::CloudState,
+
+    organizer: organizer::OrganizerState,
 }
 
 impl Router {
@@ -111,6 +114,7 @@ impl Router {
             rescore: RescoreState::default(),
             reload: None,
             cloud: cloud::CloudState::default(),
+            organizer: organizer::OrganizerState::default(),
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。
@@ -133,6 +137,7 @@ impl Router {
         self.engine.poll_glosses();
         self.poll_config_reload();
         self.maybe_apply_pending();
+        self.poll_organizer();
         if self.last_flush.elapsed() >= LEARNING_FLUSH_INTERVAL {
             self.flush_learning();
         }
@@ -148,6 +153,9 @@ impl Router {
 
 impl Drop for Router {
     fn drop(&mut self) {
+        self.organizer
+            .cancel
+            .store(true, std::sync::atomic::Ordering::Release);
         let sessions = self.sessions.keys().copied().collect::<Vec<_>>();
         for session in sessions {
             self.close_session(session);

@@ -16,6 +16,10 @@ pub struct MockAi {
 }
 impl MockAi {
     pub fn start() -> Self {
+        Self::start_with_content(serde_json::json!({"words":[{"text":"拟好","pinyin":"ni hao"}],"sentence":"你好，世界。"}).to_string())
+    }
+
+    pub fn start_with_content(content: String) -> Self {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -65,7 +69,6 @@ impl MockAi {
                 if let Some(body) = body {
                     captured.lock().unwrap().push(body);
                     std::thread::sleep(Duration::from_millis(100));
-                    let content = serde_json::json!({"words":[{"text":"拟好","pinyin":"ni hao"}],"sentence":"你好，世界。"}).to_string();
                     let response = serde_json::json!({"id":"mock", "object":"chat.completion", "created":0, "model":"mock", "choices":[{"index":0,"message":{"role":"assistant","content":content},"finish_reason":"stop"}]}).to_string();
                     let _ = write!(
                         stream,

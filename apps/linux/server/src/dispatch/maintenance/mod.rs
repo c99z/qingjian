@@ -49,6 +49,11 @@ impl Router {
         }
         let archive = Archive::read(&input)?;
         let previous = self.create_backup()?;
+        self.organizer
+            .cancel
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.organizer.pending = None;
+        self.organizer.initialized = false;
         let mut guard = RestoreGuard::prepare(&archive, &paths)?;
         let prepared = (|| {
             let config = qingjian_platform::Config::load(&paths.config)

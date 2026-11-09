@@ -7,6 +7,7 @@
 mod error;
 mod frequency_learner;
 mod input_log;
+pub mod organization;
 mod usage_stats;
 mod vocabulary_book;
 

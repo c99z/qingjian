@@ -9,6 +9,7 @@ pub mod dictionaries;
 pub mod general;
 pub mod logs;
 pub mod model;
+mod organizer;
 pub mod phrases;
 pub mod shortcuts;
 pub mod statistics;
@@ -17,7 +18,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use adw::prelude::*;
+use adw::prelude::{ActionRowExt, Cast, ComboRowExt, IsA, PreferencesRowExt, WidgetExt};
 use qingjian_platform::Config;
 
 use crate::adapters::admin::AdminClient;

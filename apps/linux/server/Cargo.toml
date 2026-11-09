@@ -27,6 +27,7 @@ tracing-appender.workspace = true
 libc = "0.2.189"
 qingjian-predict.workspace = true
 uuid.workspace = true
+jiff.workspace = true
 
 [lints]
 workspace = true

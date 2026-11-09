@@ -22,6 +22,18 @@ pub fn validate(draft: &Config) -> Vec<FieldError> {
     general(&draft.general, &mut errors);
     shortcut(&draft.shortcut, &mut errors);
     predict(&draft.predict, &mut errors);
+    if draft.organizer.hour > 23 {
+        errors.push(FieldError::new("organizer.hour", "小时须为 0–23"));
+    }
+    if draft.organizer.minute > 59 {
+        errors.push(FieldError::new("organizer.minute", "分钟须为 0–59"));
+    }
+    if draft.organizer.domain_hint.chars().count() > 120 {
+        errors.push(FieldError::new(
+            "organizer.domain_hint",
+            "专业领域最多 120 字",
+        ));
+    }
     if let Err(message) = qingjian_core::custom_phrase::validate_phrases(&draft.custom_phrases) {
         errors.push(FieldError::new("custom_phrases", message));
     }

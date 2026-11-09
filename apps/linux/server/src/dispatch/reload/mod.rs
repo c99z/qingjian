@@ -53,6 +53,7 @@ impl Router {
     pub fn watch_config(&mut self, config: &Config, config_path: PathBuf, dirs: ReloadDirs) {
         self.reload = Some(ConfigReload::new(config, config_path, dirs));
         self.configure_cloud(&config.predict);
+        self.configure_organizer(config);
     }
 
     /// 当前配置代次；没开热重载（测试）恒为 0。
@@ -124,6 +125,8 @@ impl Router {
     /// 解析成功：学习开关立即生效；其余看组句边界，正在组句就先挂起（后来的配置整个替换先挂起的）。
     fn stage_config(&mut self, config: Config) -> ComponentStatus {
         self.engine.set_learning(config.general.learning);
+        // 整理开关与数据授权撤回立即生效，迟到结果不得写入。
+        self.configure_organizer(&config);
         // 关闭云服务立即撤掉请求和候选，不等其他会话结束组句。
         if !config.predict.enabled {
             self.configure_cloud(&config.predict);
@@ -171,6 +174,7 @@ impl Router {
     /// 应用新配置（只在组句边界调）。便宜设置无条件重设；释义表 / 附加词库 / 模型 / 输入日志按 diff 换，
     /// 换失败保持旧资源。成功应用递增代次。
     fn apply_config(&mut self, config: &Config) {
+        self.configure_organizer(config);
         self.engine.set_fuzzy(config.fuzzy);
         self.engine.set_shuangpin(config.general.shuangpin());
         self.engine

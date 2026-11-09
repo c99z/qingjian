@@ -9,6 +9,7 @@ mod layout_mode;
 mod log_level;
 mod model;
 mod modifiers;
+mod organizer;
 mod preedit_mode;
 mod scheme;
 mod shift_letter;
@@ -42,6 +43,7 @@ pub use layout_mode::LayoutMode;
 pub use log_level::LogLevel;
 pub use model::LocalModelConfig;
 pub use modifiers::Modifiers;
+pub use organizer::OrganizerConfig;
 pub use preedit_mode::PreeditMode;
 pub use scheme::{Scheme, scheme_label};
 pub use shift_letter::ShiftLetter;
@@ -81,6 +83,9 @@ pub struct Config {
 
     /// 云联想。
     pub predict: PredictConfig,
+
+    /// 夜间个人词库整理；目前 Linux Server 执行。
+    pub organizer: OrganizerConfig,
 
     /// 悬浮状态条（桌面上常驻、可拖动的中 / 英浮窗）。
     pub status_bar: StatusBarConfig,
@@ -354,6 +359,14 @@ enabled = false
 # 记住的屏幕位置（物理像素，拖动后自动写入）；留空则首次出现在屏幕右下角
 # x = 0
 # y = 0
+
+[organizer]
+# Linux 夜间个人词库整理：独立于云联想开关，复用 [predict] 的 API 与本机密钥。
+# 开启后仅发送本机筛选后的重复词、读音与次数，不发送整份输入日志。
+enabled = false
+hour = 3
+minute = 0
+domain_hint = ""
 
 [update]
 # 检查更新：每天向官网（qingjian.app）读一次版本索引，有新版在菜单与设置的「关于」页提示；请求不带任何标识，不自动下载安装

@@ -96,6 +96,10 @@ impl Router {
             return ComponentStatus::Failed("服务没有输入日志路径".to_owned());
         };
         let enabled = self.reload.as_ref().is_some_and(|r| r.applied_input_log);
+        self.organizer
+            .cancel
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.organizer.pending = None;
         // 先 flush 并销毁旧 BufWriter，再截断；旧缓冲不能在本次清空后写回。
         self.engine.input_logger_mut().flush();
         self.engine.set_input_logger(Box::new(NoInputLogger));

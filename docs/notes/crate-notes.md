@@ -80,6 +80,8 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 
 ## crates/qingjian-learning
 
+- `organization`：夜间整理的本地证据筛选与产物校验。只读日志末尾最多 4 MiB，截断首行丢弃；近 14 天、2–8 个汉字、完整逐字拼音、非原样/英文/自定义来源、完整作用域上屏，撤销按进程内 ID 回退，重启/Session 断开 ID 对应。至少 3 次且跨 2 天，先排除基础库已有读音，再取最多 60 条，避免常用词挤掉新词并减少无用请求。只输出词、读音、次数、天数；`OrganizationDraft` 再次校验编号/重复/证据，新词频封顶 30，不写入原选择表。
+
 - `FrequencyLearner`：用户选择次数（`user.tsv`）、按输入串记的选择（`user-choices.tsv`，前三列仍是输入 / 词 / 次数，第四列 `u16` 位图保存同输入最近 16 次选择；旧三列读入时最近偏好为 0，不猜顺序）。
   拼音词级排序用上下文 + `choice_bonus`（0.75 × ln(1 + min(次数, 20))）+ 最近偏好（位权 0.75 衰减归一化，最多 2 分），累计次数不再是硬排序键；
   撤销选择时删除对应最近位置并紧缩历史，私密 / 关闭学习仍只读不写。形码保留同码累计选择优先。
@@ -102,6 +104,8 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
   壳激活期间每 60 秒 `Engine::flush_learning`；IMK 回调边界 `imk::catch_panic` 拦 panic、缓冲区字母原样上屏（见 architecture.md「崩溃不丢」）。
 
 ## crates/qingjian-predict
+
+- `organize_words`：后台整理单次请求，复用 `ChatClient`/接口与密钥，独立于 `predict.enabled`。只接收筛选证据及最多 120 字领域提示；30 秒超时、1200 token 上限。严格 JSON 回复只能接受证据编号和最多 8 个领域名，不允许生成新词/读音/频率或重复/越界编号。错误保留原词库，测试使用本机 HTTP mock。
 
 - `CloudPredictor`：`Predictor` trait 的网络实现（async-openai，OpenAI 兼容接口，默认 DeepSeek），后台线程防抖 / 缓存 / 超时，`submit` / `poll` 非阻塞。
   `PredictConfig` 是配置的 `[predict]` 分节。只在组句中联想，一次请求给云端词（容错校验后补进候选第一页末尾 `[predict] slots` 格，缺省 2，不预留不占位，
@@ -185,6 +189,8 @@ Linux 设置通用页提供枚举选择，专注中文时禁用仅用于混输�
 `add_unigram_priors` 只给未收录词增加显式初始化权重，保留已有词的一元与全部二元计数；不伪造句首或上下文接续。该方法供离线补词工具使用，普通运行时仍直接 mmap 加载。
 
 ## crates/qingjian-platform
+
+- `[organizer]` 为 `enabled=false`、`hour=3`、`minute=0`、`domain_hint=""`，目前 Linux 执行；旧配置默认不联网整理，设置校验小时 0–23、分钟 0–59、领域最多 120 字。接口凭据沿用 `[predict]`，与逐键云联想开关独立。
 
 输入方案是**两条独立的轴**：`Scheme`（拼音侧：全拼 / 双拼七套 / 大千注音 / 关，`[general] scheme`）
 与 `[general] wubi`（形码侧：空为关 / `wubi86`）。两边都开就是**混输**（`GeneralConfig::mixed`）。
@@ -373,6 +379,8 @@ DLL 不读文件、不查 mtime。`SessionOpened` 只回过协议版本对得上
   2026-09-20 实测：词库 92,821 词条 / 91,904 词，有码 91,773、无码跳过 131，码表 91,773 条 / 3.0 MB。
 
 ## apps/linux
+
+- Server `dispatch/organizer`：主循环最多每 30 秒检查本机整理时刻，需开关/学习/日志同时启用，无组句、无前台私密会话才启动；每天最多一次，指定时刻后当日 4 小时内补做，`organizer/last-attempt.json` 在请求前持久化防止重启重复扣费。单后台任务读取日志快照并请求 API；配置/凭据变化、关闭、清日志、恢复备份取消旧结果。任务完成等所有组句结束，备份 `organizer/previous.tsv`，原子写 `dicts/personal-agent.tsv` 后重载附加词库，不直接改排名。状态在 `organizer/status.json`；没有足够证据不调用 API，失败次日再试。关闭不移除已有词库，用户可独立停用。学习页原生控件提供独立授权、小时/分钟、领域提示及上次结果；不安装额外聊天定时任务。
 
 `qingjian-linux-server` 为独立产品 `0.1.0-dev`，装配本地 Engine、词库、释义、频率学习、个人 n-gram、词汇记录与可选输入日志，
 本地整句模型优先加载用户 `~/.local/share/qingjian/models/hanzhang-tongbian/` 或随包 `data/models/hanzhang-tongbian/`，缺失时回退 `models/hanzhang-zhiwei/`；旧用户目录兼容读取。按 `[model] enabled` 在后台加载、停键 80 ms 后重排，Server 每 20 ms 收模型结果，Fcitx5 插件组句期间每 20 ms 取最新候选；云候选、整句补全与释义补全使用 `qingjian-predict` 的后台线程，本地按键只收发内存通道。Linux 不读取应用上下文或历史输入；失焦、隐私变化、清空与关闭云服务时取消旧结果，关闭开关立即生效。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
